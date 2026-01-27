@@ -7,9 +7,6 @@ A CLI tool for managing Ralph Loop workflows—autonomous development sessions d
 ```bash
 # From GitHub
 cargo install --git https://github.com/wcygan/ralphctl
-
-# From source
-cargo install --path .
 ```
 
 Requires the `claude` CLI to be installed and available in PATH.
