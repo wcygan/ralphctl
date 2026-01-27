@@ -2,6 +2,7 @@ mod cli;
 mod error;
 mod files;
 mod parser;
+mod templates;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
