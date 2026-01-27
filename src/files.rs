@@ -32,6 +32,10 @@ pub const REVERSE_FILES: &[&str] = &[
 /// Files that are archived (stateful files, not templates or logs).
 pub const ARCHIVABLE_FILES: &[&str] = &[SPEC_FILE, IMPLEMENTATION_PLAN_FILE];
 
+/// Reverse mode files that are archived (stateful files, not template).
+/// Excludes REVERSE_PROMPT.md as it's a template fetched from GitHub.
+pub const ARCHIVABLE_REVERSE_FILES: &[&str] = &[QUESTION_FILE, INVESTIGATION_FILE, FINDINGS_FILE];
+
 /// The ralphctl directory for storing archives and other data.
 pub const RALPHCTL_DIR: &str = ".ralphctl";
 
@@ -75,6 +79,18 @@ pub fn any_reverse_files_exist(dir: &Path) -> bool {
 /// Returns a list of paths to existing archivable files.
 pub fn find_archivable_files(dir: &Path) -> Vec<PathBuf> {
     ARCHIVABLE_FILES
+        .iter()
+        .map(|name| dir.join(name))
+        .filter(|path| path.exists())
+        .collect()
+}
+
+/// Find archivable reverse mode files that exist in the given directory.
+///
+/// Returns a list of paths to existing archivable reverse mode files.
+/// Excludes REVERSE_PROMPT.md as it's a template, not stateful.
+pub fn find_archivable_reverse_files(dir: &Path) -> Vec<PathBuf> {
+    ARCHIVABLE_REVERSE_FILES
         .iter()
         .map(|name| dir.join(name))
         .filter(|path| path.exists())
@@ -270,5 +286,59 @@ mod tests {
         let forward_found = find_existing_ralph_files(dir.path());
         assert_eq!(forward_found.len(), 2);
         assert!(any_ralph_files_exist(dir.path()));
+    }
+
+    // Archivable reverse files tests
+
+    #[test]
+    fn test_archivable_reverse_files_constant() {
+        assert!(ARCHIVABLE_REVERSE_FILES.contains(&QUESTION_FILE));
+        assert!(ARCHIVABLE_REVERSE_FILES.contains(&INVESTIGATION_FILE));
+        assert!(ARCHIVABLE_REVERSE_FILES.contains(&FINDINGS_FILE));
+        assert_eq!(ARCHIVABLE_REVERSE_FILES.len(), 3);
+        // REVERSE_PROMPT.md is NOT archivable (it's a template)
+        assert!(!ARCHIVABLE_REVERSE_FILES.contains(&REVERSE_PROMPT_FILE));
+    }
+
+    #[test]
+    fn test_find_archivable_reverse_files_empty() {
+        let dir = create_temp_dir();
+        let found = find_archivable_reverse_files(dir.path());
+        assert!(found.is_empty());
+    }
+
+    #[test]
+    fn test_find_archivable_reverse_files_only_archivable() {
+        let dir = create_temp_dir();
+
+        // Create archivable reverse files
+        fs::write(dir.path().join(QUESTION_FILE), "# Question").unwrap();
+        fs::write(dir.path().join(INVESTIGATION_FILE), "# Investigation").unwrap();
+        fs::write(dir.path().join(FINDINGS_FILE), "# Findings").unwrap();
+        // Create non-archivable reverse file (template)
+        fs::write(dir.path().join(REVERSE_PROMPT_FILE), "# Prompt").unwrap();
+
+        let found = find_archivable_reverse_files(dir.path());
+        assert_eq!(found.len(), 3);
+        assert!(found.iter().any(|p| p.ends_with(QUESTION_FILE)));
+        assert!(found.iter().any(|p| p.ends_with(INVESTIGATION_FILE)));
+        assert!(found.iter().any(|p| p.ends_with(FINDINGS_FILE)));
+        // REVERSE_PROMPT.md should not be in the list
+        assert!(!found.iter().any(|p| p.ends_with(REVERSE_PROMPT_FILE)));
+    }
+
+    #[test]
+    fn test_find_archivable_reverse_files_partial() {
+        let dir = create_temp_dir();
+
+        // Create only some archivable reverse files
+        fs::write(dir.path().join(QUESTION_FILE), "# Question").unwrap();
+        fs::write(dir.path().join(INVESTIGATION_FILE), "# Investigation").unwrap();
+        // No FINDINGS.md - investigation not complete
+
+        let found = find_archivable_reverse_files(dir.path());
+        assert_eq!(found.len(), 2);
+        assert!(found.iter().any(|p| p.ends_with(QUESTION_FILE)));
+        assert!(found.iter().any(|p| p.ends_with(INVESTIGATION_FILE)));
     }
 }
