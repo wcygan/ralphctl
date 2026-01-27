@@ -21,6 +21,7 @@ const INIT_FILES: &[&str] = &[
 #[derive(Parser)]
 #[command(name = "ralphctl")]
 #[command(version, about = "Manage Ralph Loop workflows")]
+#[command(after_help = "Workflow: init → interview → run → verify → clean")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -271,7 +272,11 @@ The implementation plan is the agent's task queue. Each checkbox is one unit of 
 
 ## Interview Guidelines
 
-Your job is to extract enough detail to write these files. Ask about:
+Your job is to extract enough detail to write these files.
+
+**IMPORTANT**: Always use the `AskUserQuestion` tool to ask questions. Do NOT ask questions as free-form text in your response—the user cannot reply to text responses. Every question must go through the AskUserQuestion tool so the user can provide structured answers.
+
+Topics to cover:
 
 1. **Core purpose**: What problem does this solve? Who is it for?
 2. **Features**: What must it do? What's nice-to-have vs essential?

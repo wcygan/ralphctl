@@ -14,19 +14,34 @@ cargo install --path .
 
 Requires the `claude` CLI to be installed and available in PATH.
 
-## Usage
+## Workflow
+
+```
+init → interview → run → verify → clean
+```
+
+1. **`ralphctl init`** — Scaffold ralph loop files from templates
+2. **`ralphctl interview`** — AI-guided interview to create SPEC.md and IMPLEMENTATION_PLAN.md
+3. **`ralphctl run`** — Execute the autonomous development loop
+4. **Verify** — Manually review the completed work
+5. **`ralphctl clean`** — Remove ralph loop files when done
+
+## Quick Start
 
 ```bash
-# Initialize a new ralph loop (fetches templates from GitHub)
+# 1. Initialize a new ralph loop
 ralphctl init
 
-# Run the autonomous development loop
+# 2. Interview to define your project (interactive)
+ralphctl interview
+
+# 3. Run the autonomous development loop
 ralphctl run
 
-# Check progress
+# 4. Check progress at any time
 ralphctl status
 
-# Clean up ralph files
+# 5. Clean up when done
 ralphctl clean
 ```
 
@@ -35,17 +50,25 @@ ralphctl clean
 | Command | Description |
 |---------|-------------|
 | `init` | Scaffold ralph loop files from templates |
+| `interview` | Interactive AI interview to create spec and plan |
 | `run` | Execute the loop until done or blocked |
 | `status` | Show progress bar with task completion stats |
 | `clean` | Remove ralph loop files |
 
 ## How It Works
 
+The Ralph Loop is an autonomous development workflow:
+
 1. `ralphctl init` creates `SPEC.md`, `IMPLEMENTATION_PLAN.md`, and `PROMPT.md`
-2. Fill in your project specification and task list
+2. `ralphctl interview` guides you through defining your project specification and task list
 3. `ralphctl run` pipes the prompt to `claude -p` and streams output
-4. Claude completes tasks one at a time, updating the plan
-5. Loop continues until `[[RALPH:DONE]]` or `[[RALPH:BLOCKED:<reason>]]`
+4. Claude reads the spec, finds the next unchecked task, implements it, and marks it complete
+5. Loop repeats with fresh context each iteration (avoiding context rot)
+6. Loop exits when Claude outputs `[[RALPH:DONE]]` or `[[RALPH:BLOCKED:<reason>]]`
+
+### Why Fresh Context?
+
+Each iteration starts with clean context. This eliminates "context rot"—the degradation of AI performance as conversation history accumulates with stale information and abandoned approaches. Local files (SPEC.md, IMPLEMENTATION_PLAN.md) serve as persistent memory across iterations.
 
 ## License
 
