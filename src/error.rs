@@ -16,6 +16,8 @@ pub mod exit {
     pub const MAX_ITERATIONS: i32 = 2;
     /// Loop blocked, requires human intervention
     pub const BLOCKED: i32 = 3;
+    /// Investigation inconclusive (reverse mode only)
+    pub const INCONCLUSIVE: i32 = 4;
     /// Interrupted by signal (Ctrl+C)
     pub const INTERRUPTED: i32 = 130;
 }
