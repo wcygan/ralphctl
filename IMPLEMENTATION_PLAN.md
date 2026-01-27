@@ -2,7 +2,7 @@
 
 **Generated from:** SPEC.md
 **Status:** In Progress
-**Last Updated:** 2026-01-26
+**Last Updated:** 2026-01-26T21:45:00
 
 ---
 
@@ -45,8 +45,8 @@
 - [x] Implement PROMPT.md file reading
 - [x] Implement subprocess spawning for `claude -p` with stdin piping
 - [x] Implement real-time stdout/stderr streaming (pass-through)
-- [ ] Implement iteration header printing (`=== Iteration N starting ===`)
-- [ ] Implement magic string detection for `[[RALPH:DONE]]`
+- [x] Implement iteration header printing (`=== Iteration N starting ===`)
+- [x] Implement magic string detection for `[[RALPH:DONE]]`
 - [ ] Implement magic string detection for `[[RALPH:BLOCKED:<reason>]]` with reason extraction
 - [ ] Implement `--max-iterations` flag with default of 50
 - [ ] Implement pre-run validation for required files (PROMPT.md, SPEC.md, IMPLEMENTATION_PLAN.md)
