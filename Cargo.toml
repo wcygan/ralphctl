@@ -1,0 +1,23 @@
+[package]
+name = "ralphctl"
+version = "0.1.0"
+edition = "2021"
+description = "A command-line tool for managing Ralph Loop workflows"
+authors = ["Will Cygan"]
+license = "MIT"
+
+[[bin]]
+name = "ralphctl"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+dirs = "5.0"
+regex = "1.10"
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+tokio = { version = "1.43", features = ["rt-multi-thread", "macros", "process", "io-util", "fs", "signal"] }
+
+[profile.release]
+lto = true
+strip = true
