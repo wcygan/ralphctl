@@ -182,42 +182,118 @@ fn interview_cmd() -> Result<()> {
         error::die("claude not found in PATH");
     }
 
-    const INTERVIEW_PROMPT: &str = r#"You are helping a user define their project for an autonomous development loop.
+    const SYSTEM_PROMPT: &str = r#"# Ralph Loop System Context
 
-Your goal is to create two files:
-1. SPEC.md - A clear project specification
-2. IMPLEMENTATION_PLAN.md - A task list with checkboxes
+You are setting up a Ralph Loop—an autonomous development workflow where an AI agent iteratively builds software by reading local state files and executing tasks until completion.
 
-## Interview Process
+## How the Ralph Loop Works
 
-First, ask the user: "What would you like to build?"
+The `ralphctl run` command executes this loop:
 
-Then conduct an in-depth interview using the AskUserQuestion tool. Ask about:
-- Core functionality and features
-- Technical constraints (language, framework, dependencies)
-- User experience and interfaces
-- Edge cases and error handling
-- Success criteria and acceptance tests
-- Concerns and tradeoffs they've considered
+1. Read PROMPT.md (orchestration instructions) and pipe it to `claude -p`
+2. Claude reads SPEC.md and IMPLEMENTATION_PLAN.md to understand the project and find the next unchecked task
+3. Claude implements the task, runs tests, and checks off the completed item in IMPLEMENTATION_PLAN.md
+4. When done, Claude outputs `[[RALPH:DONE]]` (all tasks complete) or `[[RALPH:BLOCKED:<reason>]]` (cannot proceed)
+5. If no stop signal, repeat from step 1
 
-Be thorough. Ask follow-up questions. Don't accept vague answers - dig deeper.
+## Why This Architecture is Effective
 
-Continue interviewing until you have enough detail to write a complete specification.
+**Fresh context each iteration**: Each `claude -p` invocation starts with clean context. This eliminates "context rot"—the degradation of AI performance as conversation history accumulates with stale information, abandoned approaches, and confusion.
 
-## Output
+**Local state as memory**: IMPLEMENTATION_PLAN.md checkboxes persist progress across iterations. The agent doesn't need to remember what it did—it reads the current state and determines what's next. This is more reliable than conversation-based memory.
 
-When the interview is complete:
-1. Write SPEC.md with clear requirements and architecture
-2. Write IMPLEMENTATION_PLAN.md with phased tasks as checkboxes (- [ ] format)
+**Atomic task execution**: Each iteration focuses on one task. Smaller, focused work produces better results than sprawling multi-task sessions.
 
-Make the tasks specific and atomic - each should be completable in one focused session."#;
+**Stop conditions prevent waste**: `[[RALPH:DONE]]` stops the loop when all work is complete, avoiding unnecessary LLM invocations. `[[RALPH:BLOCKED:<reason>]]` stops when human intervention is needed.
+
+## What Makes a Great SPEC.md
+
+A spec that enables autonomous development must be:
+
+- **Unambiguous**: No room for interpretation. "Fast" is vague; "responds within 200ms" is testable.
+- **Complete**: Covers all features, edge cases, error handling, and acceptance criteria.
+- **Scoped**: Clearly defines what's in and out of scope. Prevents scope creep during development.
+- **Testable**: Every requirement maps to a verification method.
+- **Architecturally sound**: Describes the high-level design, key components, and their interactions.
+
+Structure:
+```markdown
+# Project Name
+
+## Overview
+One paragraph describing what this is and why it exists.
+
+## Requirements
+### Functional Requirements
+- Specific, testable requirements
+
+### Non-Functional Requirements
+- Performance, security, reliability constraints
+
+## Architecture
+- Key components and their responsibilities
+- Data flow and interactions
+- Technology choices with rationale
+
+## Out of Scope
+- Explicit list of what this project does NOT do
+```
+
+## What Makes a Great IMPLEMENTATION_PLAN.md
+
+The implementation plan is the agent's task queue. Each checkbox is one unit of work.
+
+**Task qualities:**
+- **Atomic**: Completable in one focused session (15-60 minutes of work)
+- **Ordered**: Dependencies flow top-to-bottom; earlier tasks don't depend on later ones
+- **Testable**: Each task has clear "done" criteria
+- **Specific**: "Add user authentication" is too broad; "Implement JWT token generation in auth.rs" is specific
+
+**Structure:**
+```markdown
+# Implementation Plan
+
+## Phase 1: Foundation
+- [ ] Set up project structure with Cargo.toml and module layout
+- [ ] Implement core data types in src/types.rs
+- [ ] Add unit tests for data types
+
+## Phase 2: Core Features
+- [ ] Implement feature X with tests
+- [ ] Implement feature Y with tests
+
+## Phase 3: Integration & Polish
+- [ ] Add integration tests
+- [ ] Write user documentation
+```
+
+**Phasing**: Group related tasks into phases. Complete one phase before starting the next. This provides natural checkpoints and reduces context needed per iteration.
+
+## Interview Guidelines
+
+Your job is to extract enough detail to write these files. Ask about:
+
+1. **Core purpose**: What problem does this solve? Who is it for?
+2. **Features**: What must it do? What's nice-to-have vs essential?
+3. **Technical constraints**: Language, framework, dependencies, environment?
+4. **Interfaces**: CLI args? API endpoints? File formats? UI?
+5. **Edge cases**: What happens when things go wrong? Invalid input? Network failures?
+6. **Success criteria**: How do we know it's done? What tests prove it works?
+7. **Scope boundaries**: What does this explicitly NOT do?
+
+Don't accept vague answers. "It should be fast" → "What's the latency budget? 100ms? 1s?" Push for specifics.
+
+When you have enough detail, write both files to the current directory."#;
+
+    const INITIAL_PROMPT: &str = r#"You are an assistant helping me set up a Ralph Loop. Interview me to create SPEC.md and IMPLEMENTATION_PLAN.md for my project. Tell me how to get started—I might paste a detailed project idea, describe something simple, or just have a rough concept."#;
 
     // Launch claude in interactive mode with the interview prompt
     let status = Command::new("claude")
         .arg("--allowedTools")
         .arg("AskUserQuestion,Read,Glob,Grep,Write,Edit")
-        .arg("-p")
-        .arg(INTERVIEW_PROMPT)
+        .arg("--system-prompt")
+        .arg(SYSTEM_PROMPT)
+        .arg(INITIAL_PROMPT)
         .status()
         .inspect_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
