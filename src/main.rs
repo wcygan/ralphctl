@@ -157,6 +157,42 @@ enum Command {
                       EXAMPLES:\n  ralphctl fetch-latest-prompt    # Download latest PROMPT.md"
     )]
     FetchLatestPrompt,
+
+    /// Investigate a codebase to answer a question
+    #[command(
+        long_about = "Run an autonomous investigation loop to answer a question about the codebase.\n\n\
+                      Unlike 'run' which builds software, 'reverse' analyzes code to answer questions—\n\
+                      diagnosing bugs, understanding systems, or mapping dependencies before changes.\n\n\
+                      Creates: QUESTION.md (from argument or template), INVESTIGATION.md, FINDINGS.md",
+        after_help = "EXAMPLES:\n  \
+                      ralphctl reverse \"Why does auth fail?\"      # Provide question directly\n  \
+                      ralphctl reverse                             # Use existing QUESTION.md\n  \
+                      ralphctl reverse --model opus \"How?\"        # Use specific model\n  \
+                      ralphctl reverse --pause                     # Confirm each iteration\n\n\
+                      EXIT CODES:\n  \
+                      0   Found (question answered)\n  \
+                      1   Error\n  \
+                      2   Max iterations reached\n  \
+                      3   Blocked\n  \
+                      4   Inconclusive\n  \
+                      130 Interrupted"
+    )]
+    Reverse {
+        /// The investigation question (reads from QUESTION.md if omitted)
+        question: Option<String>,
+
+        /// Maximum iterations before stopping
+        #[arg(long, default_value = "100", value_name = "N")]
+        max_iterations: u32,
+
+        /// Prompt for confirmation before each iteration
+        #[arg(long)]
+        pause: bool,
+
+        /// Claude model to use (e.g., 'sonnet', 'opus', or full model name)
+        #[arg(long, value_name = "MODEL")]
+        model: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -191,6 +227,14 @@ async fn main() -> Result<()> {
         }
         Command::FetchLatestPrompt => {
             fetch_latest_prompt_cmd().await?;
+        }
+        Command::Reverse {
+            question,
+            max_iterations,
+            pause,
+            model,
+        } => {
+            reverse_cmd(question, max_iterations, pause, model.as_deref()).await?;
         }
     }
 
@@ -671,4 +715,14 @@ async fn fetch_latest_prompt_cmd() -> Result<()> {
     fs::write("PROMPT.md", content)?;
     println!("Updated PROMPT.md to latest version.");
     Ok(())
+}
+
+async fn reverse_cmd(
+    _question: Option<String>,
+    _max_iterations: u32,
+    _pause: bool,
+    _model: Option<&str>,
+) -> Result<()> {
+    // Stub implementation - will be completed in subsequent tasks
+    error::die("reverse mode not yet implemented");
 }
