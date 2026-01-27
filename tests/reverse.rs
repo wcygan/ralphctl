@@ -1365,3 +1365,154 @@ fn reverse_blocked_signal_with_colon_in_reason() {
         .stderr(predicate::str::contains("Error: file not found"))
         .stderr(predicate::str::contains("/path/to/config.yaml"));
 }
+
+// ==================== Max Iterations Tests ====================
+
+#[test]
+fn reverse_max_iterations_reached_exits_with_code_2() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Mock claude outputs CONTINUE signal, which keeps the loop going
+    // until max iterations is reached
+    let mock_output = "Still investigating hypothesis...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does the test fail?")
+        .arg("--max-iterations")
+        .arg("3")
+        .assert()
+        .code(2) // Exit code 2 = MAX_ITERATIONS
+        .stderr(predicate::str::contains("reached max iterations"));
+}
+
+#[test]
+fn reverse_max_iterations_runs_exact_count() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output = "Investigating...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // Run with max-iterations=5
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Test max iterations count")
+        .arg("--max-iterations")
+        .arg("5")
+        .assert()
+        .code(2);
+
+    // Verify exactly 5 iterations ran
+    let log_content = fs::read_to_string(dir.path().join("ralph.log")).unwrap();
+    assert!(
+        log_content.contains("=== Iteration 1 starting ==="),
+        "Iteration 1 should be logged"
+    );
+    assert!(
+        log_content.contains("=== Iteration 2 starting ==="),
+        "Iteration 2 should be logged"
+    );
+    assert!(
+        log_content.contains("=== Iteration 3 starting ==="),
+        "Iteration 3 should be logged"
+    );
+    assert!(
+        log_content.contains("=== Iteration 4 starting ==="),
+        "Iteration 4 should be logged"
+    );
+    assert!(
+        log_content.contains("=== Iteration 5 starting ==="),
+        "Iteration 5 should be logged"
+    );
+    assert!(
+        !log_content.contains("=== Iteration 6 starting ==="),
+        "Iteration 6 should NOT be logged (max is 5)"
+    );
+}
+
+#[test]
+fn reverse_max_iterations_default_is_100() {
+    // Verify the default max-iterations is documented correctly in help
+    ralphctl()
+        .arg("reverse")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("100")); // Default value shown in help
+}
+
+#[test]
+fn reverse_max_iterations_one_runs_single_iteration() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // With max-iterations=1 and CONTINUE signal, should run exactly one iteration
+    let mock_output = "Single iteration work.\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    let output = ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Single iteration test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(2)
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+    assert!(
+        stdout.contains("=== Iteration 1 starting ==="),
+        "Should run iteration 1"
+    );
+    assert!(
+        !stdout.contains("=== Iteration 2 starting ==="),
+        "Should NOT run iteration 2"
+    );
+}
+
+#[test]
+fn reverse_max_iterations_with_no_signal_prompts_then_stops() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Mock claude outputs content without any signal
+    // This should trigger the no-signal prompt
+    let mock_output = "Investigation work without signal.\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // When prompted, user stops (s)
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("No signal test")
+        .arg("--max-iterations")
+        .arg("1")
+        .write_stdin("s\n") // Stop when prompted
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Stopped by user"));
+}
