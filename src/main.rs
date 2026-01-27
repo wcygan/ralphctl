@@ -1,4 +1,5 @@
 mod error;
+mod parser;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
