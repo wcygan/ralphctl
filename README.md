@@ -4,10 +4,33 @@ A CLI tool for managing Ralph Loop workflows—autonomous development sessions d
 
 ## Installation
 
+### Direct Download (macOS/Linux)
+
 ```bash
-# From GitHub
+# macOS (Apple Silicon)
+curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-darwin-arm64 -o ralphctl
+
+# macOS (Intel)
+curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-darwin-x86_64 -o ralphctl
+
+# Linux (x86_64)
+curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-linux-x86_64 -o ralphctl
+
+# Linux (ARM64)
+curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-linux-arm64 -o ralphctl
+
+# Make executable
+chmod +x ralphctl
+./ralphctl --help
+```
+
+### Cargo Install
+
+```bash
 cargo install --git https://github.com/wcygan/ralphctl
 ```
+
+### Prerequisites
 
 Requires the `claude` CLI to be installed and available in PATH.
 
@@ -48,14 +71,98 @@ ralphctl clean
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `init` | Scaffold ralph loop files from templates |
-| `interview` | Interactive AI interview to create spec and plan |
-| `run` | Execute the loop until done or blocked |
-| `status` | Show progress bar with task completion stats |
-| `archive` | Save spec/plan to timestamped archive, reset for next loop |
-| `clean` | Remove ralph loop files |
+### `ralphctl init`
+
+Scaffold ralph loop files from templates.
+
+```bash
+ralphctl init [--force]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Overwrite existing files without prompting |
+
+Creates `SPEC.md`, `IMPLEMENTATION_PLAN.md`, and `PROMPT.md` in the current directory. Templates are fetched from GitHub and cached locally for offline use.
+
+### `ralphctl interview`
+
+Interactive AI-guided interview to create project spec and implementation plan.
+
+```bash
+ralphctl interview [--model <MODEL>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--model` | Claude model to use (default: sonnet) |
+
+Launches an interactive Claude session that asks questions about your project and generates a detailed SPEC.md and IMPLEMENTATION_PLAN.md.
+
+### `ralphctl run`
+
+Execute the ralph loop until done or blocked.
+
+```bash
+ralphctl run [--max-iterations N] [--pause] [--model <MODEL>]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--max-iterations` | Maximum iterations before stopping (default: 50) |
+| `--pause` | Prompt for confirmation before each iteration |
+| `--model` | Claude model to use (default: sonnet) |
+
+The loop reads PROMPT.md and pipes it to `claude -p`, streaming output in real-time. Each iteration is logged to `ralph.log`.
+
+**Exit codes:**
+- `0` — Completed (`[[RALPH:DONE]]` detected)
+- `1` — General error
+- `2` — Max iterations reached
+- `3` — Blocked (`[[RALPH:BLOCKED]]` detected)
+- `130` — Interrupted (Ctrl+C)
+
+### `ralphctl status`
+
+Show ralph loop progress.
+
+```bash
+ralphctl status
+```
+
+Parses IMPLEMENTATION_PLAN.md and displays a progress bar:
+
+```
+[████████░░░░] 60% (12/20 tasks)
+```
+
+### `ralphctl archive`
+
+Save spec and plan to timestamped archive, reset for next loop.
+
+```bash
+ralphctl archive [--force]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompt |
+
+Archives SPEC.md and IMPLEMENTATION_PLAN.md to `.ralphctl/archive/<timestamp>/`, then replaces them with blank templates.
+
+### `ralphctl clean`
+
+Remove ralph loop files.
+
+```bash
+ralphctl clean [--force]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompt |
+
+Removes SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md, and ralph.log.
 
 ## How It Works
 
@@ -71,6 +178,23 @@ The Ralph Loop is an autonomous development workflow:
 ### Why Fresh Context?
 
 Each iteration starts with clean context. This eliminates "context rot"—the degradation of AI performance as conversation history accumulates with stale information and abandoned approaches. Local files (SPEC.md, IMPLEMENTATION_PLAN.md) serve as persistent memory across iterations.
+
+### Magic Strings
+
+The loop detects these signals in Claude's output:
+
+- `[[RALPH:DONE]]` — All tasks complete, exit successfully
+- `[[RALPH:BLOCKED:<reason>]]` — Cannot proceed, requires human intervention
+
+## Ralph Loop Files
+
+| File | Purpose |
+|------|---------|
+| `SPEC.md` | Project specification and requirements |
+| `IMPLEMENTATION_PLAN.md` | Task list with checkboxes |
+| `PROMPT.md` | Orchestration prompt piped to Claude |
+| `ralph.log` | Iteration output log |
+| `.ralphctl/archive/` | Archived specs and plans |
 
 ## License
 
