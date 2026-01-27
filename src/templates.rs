@@ -130,6 +130,67 @@ pub async fn fetch_all_templates() -> Result<Vec<(&'static str, String)>> {
     Ok(templates)
 }
 
+/// Fetch a template with network-first strategy and cache fallback.
+///
+/// Tries to fetch the template from GitHub first. On success, the template is
+/// saved to the local cache for offline use. On network failure, falls back to
+/// the cached version if available.
+///
+/// # Arguments
+///
+/// * `filename` - The template filename (e.g., "SPEC.md")
+///
+/// # Returns
+///
+/// The template content as a string.
+///
+/// # Errors
+///
+/// Returns an error only if both the network fetch fails AND no cached version exists.
+pub async fn get_template(filename: &str) -> Result<String> {
+    // Try network first
+    match fetch_template(filename).await {
+        Ok(content) => {
+            // Cache the fetched content for offline use
+            // Ignore cache write errors - it's just an optimization
+            let _ = save_to_cache(filename, &content);
+            Ok(content)
+        }
+        Err(network_err) => {
+            // Fall back to cache
+            load_from_cache(filename).with_context(|| {
+                format!(
+                    "failed to fetch {} (network: {}, no cache available)",
+                    filename, network_err
+                )
+            })
+        }
+    }
+}
+
+/// Fetch all templates with network-first strategy and cache fallback.
+///
+/// For each template, tries to fetch from GitHub first, falling back to cache
+/// on network failure. Successfully fetched templates are saved to cache.
+///
+/// # Returns
+///
+/// A vector of (filename, content) tuples for all templates.
+///
+/// # Errors
+///
+/// Returns an error if any template cannot be obtained from either network or cache.
+pub async fn get_all_templates() -> Result<Vec<(&'static str, String)>> {
+    let mut templates = Vec::with_capacity(TEMPLATE_FILES.len());
+
+    for &filename in TEMPLATE_FILES {
+        let content = get_template(filename).await?;
+        templates.push((filename, content));
+    }
+
+    Ok(templates)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,4 +257,34 @@ mod tests {
 
     // Note: Integration tests for actual HTTP fetching should use mock servers
     // or be run as part of E2E testing to avoid flaky tests due to network issues.
+
+    #[test]
+    fn test_cache_roundtrip() {
+        let filename = "test_roundtrip.md";
+        let content = "# Test Content\n\nThis is test content.";
+
+        // Save to cache
+        save_to_cache(filename, content).expect("save should succeed");
+
+        // Load from cache
+        let loaded = load_from_cache(filename).expect("load should succeed");
+        assert_eq!(loaded, content);
+
+        // Clean up
+        let path = get_cache_path(filename).unwrap();
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_load_from_cache_missing_file() {
+        let result = load_from_cache("nonexistent_file_12345.md");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ensure_cache_dir_creates_directory() {
+        let cache_dir = ensure_cache_dir().expect("ensure should succeed");
+        assert!(cache_dir.exists());
+        assert!(cache_dir.is_dir());
+    }
 }
