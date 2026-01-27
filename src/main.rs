@@ -37,7 +37,11 @@ enum Command {
     },
 
     /// Interactive interview to create SPEC.md and IMPLEMENTATION_PLAN.md
-    Interview,
+    Interview {
+        /// Model to use (e.g., 'sonnet', 'opus', or full model name)
+        #[arg(long)]
+        model: Option<String>,
+    },
 
     /// Execute the ralph loop until done or blocked
     Run {
@@ -48,6 +52,10 @@ enum Command {
         /// Prompt for confirmation before each iteration
         #[arg(long)]
         pause: bool,
+
+        /// Model to use (e.g., 'sonnet', 'opus', or full model name)
+        #[arg(long)]
+        model: Option<String>,
     },
 
     /// Show ralph loop progress
@@ -69,14 +77,15 @@ async fn main() -> Result<()> {
         Command::Init { force } => {
             init_cmd(force).await?;
         }
-        Command::Interview => {
-            interview_cmd()?;
+        Command::Interview { model } => {
+            interview_cmd(model.as_deref())?;
         }
         Command::Run {
             max_iterations,
             pause,
+            model,
         } => {
-            run_cmd(max_iterations, pause)?;
+            run_cmd(max_iterations, pause, model.as_deref())?;
         }
         Command::Status => {
             status_cmd()?;
@@ -140,7 +149,7 @@ fn clean_cmd(force: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_cmd(max_iterations: u32, _pause: bool) -> Result<()> {
+fn run_cmd(max_iterations: u32, _pause: bool, model: Option<&str>) -> Result<()> {
     // Step 1: Validate required files exist
     run::validate_required_files()?;
 
@@ -155,7 +164,7 @@ fn run_cmd(max_iterations: u32, _pause: bool) -> Result<()> {
         run::print_iteration_header(iteration);
 
         // Spawn claude subprocess
-        let result = run::spawn_claude(&prompt)?;
+        let result = run::spawn_claude(&prompt, model)?;
 
         // TODO: Check for magic strings (RALPH:DONE, RALPH:BLOCKED)
         // TODO: Log iteration to ralph.log
@@ -176,7 +185,7 @@ fn run_cmd(max_iterations: u32, _pause: bool) -> Result<()> {
     Ok(())
 }
 
-fn interview_cmd() -> Result<()> {
+fn interview_cmd(model: Option<&str>) -> Result<()> {
     use std::process::Command;
 
     if !cli::claude_exists() {
@@ -303,11 +312,17 @@ When you have enough detail:
     const INITIAL_PROMPT: &str = r#"You are an assistant helping me set up a Ralph Loop. Interview me to create SPEC.md and IMPLEMENTATION_PLAN.md for my project. Tell me how to get started—I might paste a detailed project idea, describe something simple, or just have a rough concept."#;
 
     // Launch claude in interactive mode with the interview prompt
-    let status = Command::new("claude")
-        .arg("--allowedTools")
+    let mut cmd = Command::new("claude");
+    cmd.arg("--allowedTools")
         .arg("AskUserQuestion,Read,Glob,Grep,Write,Edit")
         .arg("--system-prompt")
-        .arg(SYSTEM_PROMPT)
+        .arg(SYSTEM_PROMPT);
+
+    if let Some(m) = model {
+        cmd.arg("--model").arg(m);
+    }
+
+    let status = cmd
         .arg(INITIAL_PROMPT)
         .status()
         .inspect_err(|e| {

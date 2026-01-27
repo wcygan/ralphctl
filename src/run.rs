@@ -109,18 +109,22 @@ pub fn detect_done_signal(output: &str) -> LoopSignal {
 /// capturing the output for magic string detection.
 /// Returns the result of the iteration after claude completes.
 #[allow(dead_code)] // Used in future iteration loop implementation
-pub fn spawn_claude(prompt: &str) -> Result<IterationResult> {
-    let mut child = Command::new("claude")
-        .arg("-p")
+pub fn spawn_claude(prompt: &str, model: Option<&str>) -> Result<IterationResult> {
+    let mut cmd = Command::new("claude");
+    cmd.arg("-p")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .inspect_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                error::die("claude not found in PATH");
-            }
-        })?;
+        .stderr(Stdio::piped());
+
+    if let Some(m) = model {
+        cmd.arg("--model").arg(m);
+    }
+
+    let mut child = cmd.spawn().inspect_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            error::die("claude not found in PATH");
+        }
+    })?;
 
     // Write prompt to stdin, then drop to signal EOF
     if let Some(mut stdin) = child.stdin.take() {

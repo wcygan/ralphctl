@@ -23,8 +23,8 @@ cargo run -- <command>         # Run with args
 | Command | Description | Key Flags |
 |---------|-------------|-----------|
 | `init` | Scaffold ralph files from GitHub templates | `--force` |
-| `interview` | AI-guided interview to create SPEC.md and plan | — |
-| `run` | Execute loop until done or blocked | `--max-iterations`, `--pause` |
+| `interview` | AI-guided interview to create SPEC.md and plan | `--model` |
+| `run` | Execute loop until done or blocked | `--max-iterations`, `--pause`, `--model` |
 | `status` | Show progress bar from IMPLEMENTATION_PLAN.md | — |
 | `clean` | Remove ralph loop files | `--force` |
 
