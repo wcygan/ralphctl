@@ -718,11 +718,125 @@ async fn fetch_latest_prompt_cmd() -> Result<()> {
 }
 
 async fn reverse_cmd(
-    _question: Option<String>,
-    _max_iterations: u32,
-    _pause: bool,
-    _model: Option<&str>,
+    question: Option<String>,
+    max_iterations: u32,
+    pause: bool,
+    model: Option<&str>,
 ) -> Result<()> {
-    // Stub implementation - will be completed in subsequent tasks
-    error::die("reverse mode not yet implemented");
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let cwd = Path::new(".");
+
+    // Step 1: Handle question setup
+    // - If argument provided: write to QUESTION.md
+    // - If no argument and QUESTION.md exists: use existing file
+    // - If no argument and no QUESTION.md: create template, print instructions, exit
+    if let Some(q) = question {
+        reverse::write_question(cwd, &q)?;
+    } else if !cwd.join(files::QUESTION_FILE).exists() {
+        reverse::create_question_template(cwd)?;
+        eprintln!(
+            "Created {}. Edit it with your investigation question, then run 'ralphctl reverse' again.",
+            files::QUESTION_FILE
+        );
+        std::process::exit(error::exit::ERROR);
+    }
+
+    // Step 2: Verify claude CLI exists
+    if !cli::claude_exists() {
+        error::die("claude not found in PATH");
+    }
+
+    // Step 3: Fetch REVERSE_PROMPT.md template
+    let prompt = templates::get_reverse_template().await?;
+
+    // Write REVERSE_PROMPT.md to current directory for reference
+    fs::write(files::REVERSE_PROMPT_FILE, &prompt)?;
+
+    // Step 4: Set up Ctrl+C handler
+    let interrupt_flag = Arc::new(AtomicBool::new(false));
+    let interrupt_flag_clone = interrupt_flag.clone();
+
+    ctrlc::set_handler(move || {
+        interrupt_flag_clone.store(true, Ordering::SeqCst);
+    })
+    .expect("error setting Ctrl+C handler");
+
+    // Step 5: Run investigation loop
+    let mut iterations_completed = 0u32;
+
+    for iteration in 1..=max_iterations {
+        run::print_iteration_header(iteration);
+
+        // Handle pause mode
+        if pause && run::prompt_continue()? == run::PauseAction::Stop {
+            println!("Stopped by user.");
+            return Ok(());
+        }
+
+        let result = run::spawn_claude(&prompt, model, Some(interrupt_flag.clone()))?;
+
+        // Log iteration output to ralph.log
+        run::log_iteration(iteration, &result.stdout)?;
+
+        // Check if we were interrupted
+        if result.was_interrupted {
+            print_reverse_interrupt_summary(iterations_completed);
+            std::process::exit(error::exit::INTERRUPTED);
+        }
+
+        iterations_completed = iteration;
+
+        if !result.success {
+            error::die(&format!(
+                "claude exited with code {}",
+                result.exit_code.unwrap_or(-1)
+            ));
+        }
+
+        // Detect reverse mode signals (priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE)
+        match reverse::detect_reverse_signal(&result.stdout) {
+            reverse::ReverseSignal::Blocked(reason) => {
+                eprintln!("blocked: {}", reason);
+                std::process::exit(error::exit::BLOCKED);
+            }
+            reverse::ReverseSignal::Found(summary) => {
+                println!("=== Investigation complete ===");
+                println!("Found: {}", summary);
+                return Ok(());
+            }
+            reverse::ReverseSignal::Inconclusive(reason) => {
+                eprintln!("=== Investigation inconclusive ===");
+                eprintln!("{}", reason);
+                std::process::exit(error::exit::INCONCLUSIVE);
+            }
+            reverse::ReverseSignal::Continue => {
+                // Still investigating, continue to next iteration
+            }
+            reverse::ReverseSignal::NoSignal => {
+                // No signal detected, prompt user for action
+                if run::prompt_no_signal()? == run::NoSignalAction::Stop {
+                    println!("Stopped by user.");
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    // Reached max iterations without completion
+    eprintln!(
+        "warning: reached max iterations ({}) without finding an answer",
+        max_iterations
+    );
+    std::process::exit(error::exit::MAX_ITERATIONS);
+}
+
+/// Print interrupt summary for reverse mode.
+fn print_reverse_interrupt_summary(iterations_completed: u32) {
+    eprintln!(
+        "Interrupted after {} iteration{}.",
+        iterations_completed,
+        if iterations_completed == 1 { "" } else { "s" }
+    );
 }
