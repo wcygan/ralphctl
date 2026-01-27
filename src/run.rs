@@ -62,6 +62,10 @@ pub fn read_prompt() -> Result<String> {
     Ok(content)
 }
 
+/// Magic string indicating the ralph loop completed successfully.
+#[allow(dead_code)] // Used in future loop implementation
+pub const RALPH_DONE_MARKER: &str = "[[RALPH:DONE]]";
+
 /// Result of running a single iteration of the claude subprocess.
 #[allow(dead_code)] // Used in future iteration loop implementation
 #[derive(Debug)]
@@ -74,6 +78,29 @@ pub struct IterationResult {
     pub stdout: String,
     /// Captured stderr output
     pub stderr: String,
+}
+
+/// Outcome of checking for magic strings in iteration output.
+#[allow(dead_code)] // Used in future loop implementation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoopSignal {
+    /// Loop completed successfully (RALPH:DONE detected)
+    Done,
+    /// No signal detected, continue looping
+    Continue,
+}
+
+/// Check if the output contains the RALPH:DONE marker.
+///
+/// Scans the provided output string for the magic string `[[RALPH:DONE]]`.
+/// Returns `LoopSignal::Done` if found, `LoopSignal::Continue` otherwise.
+#[allow(dead_code)] // Used in future loop implementation
+pub fn detect_done_signal(output: &str) -> LoopSignal {
+    if output.contains(RALPH_DONE_MARKER) {
+        LoopSignal::Done
+    } else {
+        LoopSignal::Continue
+    }
 }
 
 /// Spawn `claude -p` as a subprocess and pipe the prompt via stdin.
@@ -322,5 +349,58 @@ mod tests {
 
         // Stderr should be empty since cat doesn't produce stderr
         assert!(stderr_captured.is_empty());
+    }
+
+    #[test]
+    fn test_detect_done_signal_found() {
+        let output = "Completed all tasks.\n[[RALPH:DONE]]\n";
+        assert_eq!(detect_done_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_done_signal_found_inline() {
+        // Marker can appear anywhere in the output
+        let output = "Work finished [[RALPH:DONE]] done";
+        assert_eq!(detect_done_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_done_signal_not_found() {
+        let output = "Still working on tasks...\nMore output here.";
+        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_done_signal_empty_output() {
+        assert_eq!(detect_done_signal(""), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_done_signal_partial_marker() {
+        // Partial markers should not trigger done
+        let output = "[[RALPH:DON]] almost done";
+        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
+
+        let output2 = "RALPH:DONE without brackets";
+        assert_eq!(detect_done_signal(output2), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_loop_signal_equality() {
+        assert_eq!(LoopSignal::Done, LoopSignal::Done);
+        assert_eq!(LoopSignal::Continue, LoopSignal::Continue);
+        assert_ne!(LoopSignal::Done, LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_loop_signal_clone() {
+        let signal = LoopSignal::Done;
+        let cloned = signal.clone();
+        assert_eq!(signal, cloned);
+    }
+
+    #[test]
+    fn test_ralph_done_marker_constant() {
+        assert_eq!(RALPH_DONE_MARKER, "[[RALPH:DONE]]");
     }
 }
