@@ -2,7 +2,7 @@
 
 **Generated from:** SPEC.md
 **Status:** In Progress
-**Last Updated:** 2026-01-26T21:45:00
+**Last Updated:** 2026-01-26T22:15:00
 
 ---
 
@@ -50,7 +50,7 @@
 - [x] Implement magic string detection for `[[RALPH:BLOCKED:<reason>]]` with reason extraction
 - [x] Implement `--max-iterations` flag with default of 50
 - [x] Implement pre-run validation for required files (PROMPT.md, SPEC.md, IMPLEMENTATION_PLAN.md)
-- [ ] Write integration tests for run command with mock claude output
+- [x] Write integration tests for run command with mock claude output
 
 ## Phase 6: Run Command Enhancements
 
