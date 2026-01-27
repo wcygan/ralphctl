@@ -112,6 +112,7 @@ pub fn detect_done_signal(output: &str) -> LoopSignal {
 pub fn spawn_claude(prompt: &str, model: Option<&str>) -> Result<IterationResult> {
     let mut cmd = Command::new("claude");
     cmd.arg("-p")
+        .arg("--dangerously-skip-permissions")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
