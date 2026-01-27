@@ -354,10 +354,14 @@ fn archive_cmd(force: bool) -> Result<()> {
         fs::copy(path, dest)?;
     }
 
-    // Reset original files to blank templates
+    // Reset original files to blank templates (or delete if no reset template)
     for path in &archivable_files {
-        let blank = generate_blank_content(path);
-        fs::write(path, blank)?;
+        if let Some(blank) = generate_blank_content(path) {
+            fs::write(path, blank)?;
+        } else {
+            // Delete files that don't have a reset template (e.g., FINDINGS.md)
+            fs::remove_file(path)?;
+        }
     }
 
     println!(
@@ -376,12 +380,22 @@ fn generate_timestamp() -> String {
 }
 
 /// Generate blank content for a given file.
-fn generate_blank_content(path: &Path) -> &'static str {
+///
+/// Returns `None` for files that should be deleted instead of reset (e.g., FINDINGS.md).
+fn generate_blank_content(path: &Path) -> Option<&'static str> {
     let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     match filename {
-        files::SPEC_FILE => "# Specification\n\n",
-        files::IMPLEMENTATION_PLAN_FILE => "# Implementation Plan\n\n",
-        _ => "",
+        // Forward mode
+        files::SPEC_FILE => Some("# Specification\n\n"),
+        files::IMPLEMENTATION_PLAN_FILE => Some("# Implementation Plan\n\n"),
+        // Reverse mode
+        files::QUESTION_FILE => {
+            Some("# Investigation Question\n\nDescribe what you want to investigate...\n")
+        }
+        files::INVESTIGATION_FILE => Some("# Investigation Log\n\n"),
+        // FINDINGS.md is deleted, not reset
+        files::FINDINGS_FILE => None,
+        _ => Some(""),
     }
 }
 
