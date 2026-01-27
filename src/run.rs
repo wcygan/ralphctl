@@ -163,6 +163,25 @@ pub fn print_interrupt_summary(iterations_completed: u32) {
     );
 }
 
+/// Print current progress from IMPLEMENTATION_PLAN.md.
+///
+/// Displays a progress bar showing task completion status after each iteration.
+/// Format: `[████████░░░░] 67% (67/100 tasks)`
+pub fn print_progress() {
+    match fs::read_to_string(files::IMPLEMENTATION_PLAN_FILE) {
+        Ok(content) => {
+            let count = parser::count_checkboxes(&content);
+            println!("\n{}", count.render_progress_bar());
+        }
+        Err(_) => {
+            eprintln!(
+                "warning: could not read {} for progress",
+                files::IMPLEMENTATION_PLAN_FILE
+            );
+        }
+    }
+}
+
 /// Magic string indicating the ralph loop completed successfully (all tasks done).
 pub const RALPH_DONE_MARKER: &str = "[[RALPH:DONE]]";
 
@@ -1093,5 +1112,27 @@ Some educational content here.
         // Capture stdout (should be empty since 'true' produces no output)
         let captured = stream_and_capture(stdout, Vec::new());
         assert!(captured.is_empty());
+    }
+
+    #[test]
+    fn test_print_progress_does_not_panic() {
+        // Verifies graceful handling when IMPLEMENTATION_PLAN.md is missing.
+        // Should print a warning to stderr but not panic.
+        with_temp_dir(|_dir| {
+            // No IMPLEMENTATION_PLAN.md exists - should handle gracefully
+            print_progress();
+        });
+    }
+
+    #[test]
+    fn test_print_progress_with_valid_file() {
+        with_temp_dir(|dir| {
+            // Create a valid IMPLEMENTATION_PLAN.md
+            let content = "# Plan\n\n- [x] Task 1\n- [ ] Task 2\n- [x] Task 3\n";
+            fs::write(dir.path().join(files::IMPLEMENTATION_PLAN_FILE), content).unwrap();
+
+            // Should not panic
+            print_progress();
+        });
     }
 }

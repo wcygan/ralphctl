@@ -457,6 +457,9 @@ fn run_cmd(max_iterations: u32, pause: bool, model: Option<&str>) -> Result<()> 
         // Log iteration output to ralph.log
         run::log_iteration(iteration, &result.stdout)?;
 
+        // Print progress status
+        run::print_progress();
+
         // Check if we were interrupted
         if result.was_interrupted {
             run::print_interrupt_summary(iterations_completed);

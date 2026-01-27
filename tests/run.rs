@@ -696,3 +696,67 @@ Some educational content here about the code.
         .code(2) // CONTINUE triggers next iteration, hits max
         .stderr(predicate::str::contains("reached max iterations"));
 }
+
+#[test]
+fn run_prints_progress_after_iteration() {
+    // After each iteration completes, a progress bar should be printed
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    let mock_output = "Task completed.\n[[RALPH:DONE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        // Progress bar format: [████████░░░░] X% (Y/Z tasks)
+        .stdout(predicate::str::contains("tasks)"))
+        .stdout(predicate::str::contains("%"));
+}
+
+#[test]
+fn run_progress_shows_correct_count() {
+    // Verify progress bar reflects actual task count from IMPLEMENTATION_PLAN.md
+    let dir = temp_dir();
+
+    // Create ralph files with specific task counts
+    fs::write(
+        dir.path().join("PROMPT.md"),
+        "# Test Prompt\n\nDo the task.",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("SPEC.md"),
+        "# Test Spec\n\nProject specification.",
+    )
+    .unwrap();
+    // 2 tasks total, both incomplete
+    fs::write(
+        dir.path().join("IMPLEMENTATION_PLAN.md"),
+        "# Plan\n\n- [ ] Task 1\n- [ ] Task 2\n",
+    )
+    .unwrap();
+
+    let mock_output = "Working.\n[[RALPH:DONE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        // Should show 0/2 tasks (0%)
+        .stdout(predicate::str::contains("0/2 tasks"));
+}
