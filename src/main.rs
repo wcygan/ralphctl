@@ -149,7 +149,7 @@ fn clean_cmd(force: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_cmd(max_iterations: u32, _pause: bool, model: Option<&str>) -> Result<()> {
+fn run_cmd(max_iterations: u32, pause: bool, model: Option<&str>) -> Result<()> {
     // Step 1: Validate required files exist
     run::validate_required_files()?;
 
@@ -184,7 +184,11 @@ fn run_cmd(max_iterations: u32, _pause: bool, model: Option<&str>) -> Result<()>
             std::process::exit(error::exit::BLOCKED);
         }
 
-        // TODO: Handle --pause flag
+        // Prompt for confirmation if --pause flag is set
+        if pause && run::prompt_continue()? == run::PauseAction::Stop {
+            println!("Stopped by user.");
+            return Ok(());
+        }
     }
 
     // Reached max iterations without completion

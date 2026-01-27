@@ -81,6 +81,34 @@ pub fn log_iteration(iteration: u32, stdout: &str) -> Result<()> {
     Ok(())
 }
 
+/// Result of prompting user to continue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PauseAction {
+    /// Continue to next iteration
+    Continue,
+    /// Stop the loop gracefully
+    Stop,
+}
+
+/// Prompt user to continue to next iteration.
+///
+/// Returns `PauseAction::Continue` on 'y', 'Y', or empty input.
+/// Returns `PauseAction::Stop` on 'n', 'N', 'q', or 'Q'.
+pub fn prompt_continue() -> Result<PauseAction> {
+    eprint!("Continue? [Y/n] ");
+    io::stderr().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    let answer = input.trim().to_lowercase();
+    if answer.is_empty() || answer == "y" || answer == "yes" {
+        Ok(PauseAction::Continue)
+    } else {
+        Ok(PauseAction::Stop)
+    }
+}
+
 /// Magic string indicating the ralph loop completed successfully.
 pub const RALPH_DONE_MARKER: &str = "[[RALPH:DONE]]";
 
@@ -524,5 +552,26 @@ mod tests {
             assert!(content.contains("=== Iteration 2 starting ==="));
             assert!(content.contains("Second"));
         });
+    }
+
+    #[test]
+    fn test_pause_action_equality() {
+        assert_eq!(PauseAction::Continue, PauseAction::Continue);
+        assert_eq!(PauseAction::Stop, PauseAction::Stop);
+        assert_ne!(PauseAction::Continue, PauseAction::Stop);
+    }
+
+    #[test]
+    fn test_pause_action_clone() {
+        let action = PauseAction::Continue;
+        let cloned = action.clone();
+        assert_eq!(action, cloned);
+    }
+
+    #[test]
+    fn test_pause_action_debug() {
+        let action = PauseAction::Stop;
+        let debug_str = format!("{:?}", action);
+        assert_eq!(debug_str, "Stop");
     }
 }
