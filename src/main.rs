@@ -74,6 +74,9 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
+
+    /// Update ralphctl to the latest version from GitHub
+    Update,
 }
 
 #[tokio::main]
@@ -103,6 +106,28 @@ async fn main() -> Result<()> {
         Command::Archive { force } => {
             archive_cmd(force)?;
         }
+        Command::Update => {
+            update_cmd()?;
+        }
+    }
+
+    Ok(())
+}
+
+fn update_cmd() -> Result<()> {
+    use std::process::Command;
+
+    println!("Updating ralphctl...");
+
+    let status = Command::new("cargo")
+        .args(["install", "--git", "https://github.com/wcygan/ralphctl"])
+        .status()?;
+
+    if !status.success() {
+        error::die(&format!(
+            "cargo install failed with code {}",
+            status.code().unwrap_or(-1)
+        ));
     }
 
     Ok(())

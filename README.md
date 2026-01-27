@@ -14,14 +14,15 @@ Requires the `claude` CLI to be installed and available in PATH.
 ## Workflow
 
 ```
-init → interview → run → verify → clean
+init → interview → run → verify → archive (or clean)
 ```
 
 1. **`ralphctl init`** — Scaffold ralph loop files from templates
 2. **`ralphctl interview`** — AI-guided interview to create SPEC.md and IMPLEMENTATION_PLAN.md
 3. **`ralphctl run`** — Execute the autonomous development loop
 4. **Verify** — Manually review the completed work
-5. **`ralphctl clean`** — Remove ralph loop files when done
+5. **`ralphctl archive`** — Save spec/plan to `.ralphctl/archive/` and reset for next loop
+6. **`ralphctl clean`** — Remove ralph loop files when done
 
 ## Quick Start
 
@@ -38,7 +39,10 @@ ralphctl run
 # 4. Check progress at any time
 ralphctl status
 
-# 5. Clean up when done
+# 5a. Archive completed work and start fresh
+ralphctl archive
+
+# 5b. Or clean up when completely done
 ralphctl clean
 ```
 
@@ -50,6 +54,7 @@ ralphctl clean
 | `interview` | Interactive AI interview to create spec and plan |
 | `run` | Execute the loop until done or blocked |
 | `status` | Show progress bar with task completion stats |
+| `archive` | Save spec/plan to timestamped archive, reset for next loop |
 | `clean` | Remove ralph loop files |
 
 ## How It Works

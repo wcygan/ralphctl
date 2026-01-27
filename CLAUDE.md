@@ -6,7 +6,7 @@ Guidance for Claude Code when working with this repository.
 
 `ralphctl` is a Rust CLI for managing Ralph Loop workflows—autonomous development sessions driven by Claude. It orchestrates `claude` subprocess calls to execute iterative development tasks defined in markdown files.
 
-**Workflow**: `init → interview → run → clean`
+**Workflow**: `init → interview → run → archive (or clean)`
 
 ## Build & Test
 
@@ -26,6 +26,7 @@ cargo run -- <command>         # Run with args
 | `interview` | AI-guided interview to create SPEC.md and plan | `--model` |
 | `run` | Execute loop until done or blocked | `--max-iterations`, `--pause`, `--model` |
 | `status` | Show progress bar from IMPLEMENTATION_PLAN.md | — |
+| `archive` | Save spec/plan to `.ralphctl/archive/<timestamp>/`, reset to blank | `--force` |
 | `clean` | Remove ralph loop files | `--force` |
 
 ## Dependencies
@@ -49,7 +50,7 @@ cargo run -- <command>         # Run with args
 | `cli.rs` | Claude binary detection | `claude_exists()` |
 | `run.rs` | Loop execution, subprocess spawning | `spawn_claude()`, `detect_done_signal()`, `detect_blocked_signal()`, `log_iteration()`, `prompt_continue()` |
 | `parser.rs` | Checkbox parsing for progress | `count_checkboxes()`, `render_progress_bar()` |
-| `files.rs` | File constants and discovery | `find_existing_ralph_files()` |
+| `files.rs` | File constants and discovery | `find_existing_ralph_files()`, `find_archivable_files()`, `archive_base_dir()` |
 | `templates.rs` | GitHub fetch with XDG cache | `get_all_templates()`, `fetch_template()` |
 | `error.rs` | Unix-style errors, exit codes | `die()`, `exit` module |
 
@@ -93,8 +94,9 @@ templates/           # Source templates for init
 └── PROMPT.md
 
 tests/               # Integration tests
-├── init.rs
-└── clean.rs
+├── archive.rs
+├── clean.rs
+└── init.rs
 ```
 
 ## Ralph Workflow Files
@@ -105,6 +107,7 @@ tests/               # Integration tests
 | `IMPLEMENTATION_PLAN.md` | Task list with checkboxes | init, interview |
 | `PROMPT.md` | Orchestration prompt piped to Claude | init |
 | `ralph.log` | Iteration output log | run |
+| `.ralphctl/archive/<timestamp>/` | Archived specs and plans | archive |
 
 ## CI/CD
 
