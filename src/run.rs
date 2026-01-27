@@ -62,6 +62,25 @@ pub fn read_prompt() -> Result<String> {
     Ok(content)
 }
 
+/// Append iteration output to ralph.log.
+///
+/// Creates the log file if it doesn't exist. Each iteration is logged with
+/// a header and separator for easy parsing.
+pub fn log_iteration(iteration: u32, stdout: &str) -> Result<()> {
+    use std::fs::OpenOptions;
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(files::LOG_FILE)?;
+
+    writeln!(file, "{}", format_iteration_header(iteration))?;
+    writeln!(file, "{}", stdout)?;
+    writeln!(file, "--- end iteration {} ---\n", iteration)?;
+
+    Ok(())
+}
+
 /// Magic string indicating the ralph loop completed successfully.
 pub const RALPH_DONE_MARKER: &str = "[[RALPH:DONE]]";
 
@@ -471,5 +490,39 @@ mod tests {
     fn test_blocked_marker_constants() {
         assert_eq!(RALPH_BLOCKED_PREFIX, "[[RALPH:BLOCKED:");
         assert_eq!(RALPH_BLOCKED_SUFFIX, "]]");
+    }
+
+    #[test]
+    fn test_log_iteration_creates_file() {
+        with_temp_dir(|_dir| {
+            log_iteration(1, "Test output").unwrap();
+            assert!(Path::new(files::LOG_FILE).exists());
+        });
+    }
+
+    #[test]
+    fn test_log_iteration_content_format() {
+        with_temp_dir(|_dir| {
+            log_iteration(1, "First iteration output").unwrap();
+
+            let content = fs::read_to_string(files::LOG_FILE).unwrap();
+            assert!(content.contains("=== Iteration 1 starting ==="));
+            assert!(content.contains("First iteration output"));
+            assert!(content.contains("--- end iteration 1 ---"));
+        });
+    }
+
+    #[test]
+    fn test_log_iteration_appends() {
+        with_temp_dir(|_dir| {
+            log_iteration(1, "First").unwrap();
+            log_iteration(2, "Second").unwrap();
+
+            let content = fs::read_to_string(files::LOG_FILE).unwrap();
+            assert!(content.contains("=== Iteration 1 starting ==="));
+            assert!(content.contains("First"));
+            assert!(content.contains("=== Iteration 2 starting ==="));
+            assert!(content.contains("Second"));
+        });
     }
 }

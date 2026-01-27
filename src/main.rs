@@ -162,6 +162,9 @@ fn run_cmd(max_iterations: u32, _pause: bool, model: Option<&str>) -> Result<()>
 
         let result = run::spawn_claude(&prompt, model)?;
 
+        // Log iteration output to ralph.log
+        run::log_iteration(iteration, &result.stdout)?;
+
         if !result.success {
             error::die(&format!(
                 "claude exited with code {}",
@@ -181,7 +184,6 @@ fn run_cmd(max_iterations: u32, _pause: bool, model: Option<&str>) -> Result<()>
             std::process::exit(error::exit::BLOCKED);
         }
 
-        // TODO: Log iteration to ralph.log
         // TODO: Handle --pause flag
     }
 
