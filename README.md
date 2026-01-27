@@ -176,6 +176,45 @@ ralphctl fetch-latest-prompt
 
 Downloads the latest orchestration prompt from GitHub, preserving your SPEC.md and IMPLEMENTATION_PLAN.md. Use this when ralphctl is updated with new control signals or improved prompting logic.
 
+### `ralphctl reverse`
+
+Investigate a codebase to answer a question—diagnosing bugs, understanding legacy code, or mapping dependencies before refactoring.
+
+```bash
+ralphctl reverse [OPTIONS] [QUESTION]
+```
+
+| Argument/Flag | Description |
+|---------------|-------------|
+| `QUESTION` | The investigation question (reads from QUESTION.md if omitted) |
+| `--max-iterations` | Maximum iterations before stopping (default: 100) |
+| `--pause` | Prompt for confirmation before each iteration |
+| `--model` | Claude model to use (e.g., 'sonnet', 'opus') |
+
+**Examples:**
+
+```bash
+# Investigate with a question directly
+ralphctl reverse "Why does the authentication flow fail for OAuth users?"
+
+# Use existing QUESTION.md
+ralphctl reverse
+
+# With options
+ralphctl reverse --model opus "How does the payment processing work?"
+ralphctl reverse --pause --max-iterations 50 "Why is the cache invalidation slow?"
+```
+
+**Exit codes:**
+- `0` — Found (question answered, FINDINGS.md written)
+- `1` — General error
+- `2` — Max iterations reached
+- `3` — Blocked (`[[RALPH:BLOCKED]]` detected)
+- `4` — Inconclusive (could not determine answer, FINDINGS.md written)
+- `130` — Interrupted (Ctrl+C)
+
+Unlike `run` which builds software by completing tasks, `reverse` operates read-only and produces investigation reports. See [Reverse Mode](#reverse-mode) for details.
+
 ## How It Works
 
 The Ralph Loop is an autonomous development workflow:
@@ -199,7 +238,66 @@ The loop detects these signals in Claude's output:
 - `[[RALPH:DONE]]` — All tasks complete, exit successfully
 - `[[RALPH:BLOCKED:<reason>]]` — Cannot proceed, requires human intervention
 
+## Reverse Mode
+
+Reverse Mode enables autonomous investigation workflows. While Forward Mode (`ralphctl run`) builds software by completing tasks, Reverse Mode (`ralphctl reverse`) analyzes codebases to answer questions.
+
+### When to Use Reverse Mode
+
+- **Diagnosing bugs**: "Why does the cache fail under high load?"
+- **Understanding legacy code**: "How does the authentication system work?"
+- **Pre-refactoring analysis**: "What are all the dependencies on this module?"
+- **Architecture exploration**: "How does data flow through the system?"
+
+### Reverse Mode Workflow
+
+```bash
+# Start an investigation
+ralphctl reverse "Why does the payment processing fail intermittently?"
+
+# Claude investigates autonomously, updating INVESTIGATION.md
+# When done, produces FINDINGS.md with the answer
+
+# Archive the investigation and start fresh
+ralphctl archive
+```
+
+### Reverse Mode Files
+
+| File | Purpose |
+|------|---------|
+| `QUESTION.md` | The investigation question |
+| `INVESTIGATION.md` | Running log of hypotheses with checkboxes |
+| `FINDINGS.md` | Final synthesized report |
+| `REVERSE_PROMPT.md` | Instructions for investigation loop |
+
+### Reverse Mode Signals
+
+- `[[RALPH:CONTINUE]]` — Still investigating, more hypotheses to explore
+- `[[RALPH:FOUND:<summary>]]` — Question answered, FINDINGS.md written
+- `[[RALPH:INCONCLUSIVE:<why>]]` — Cannot determine answer, FINDINGS.md written
+- `[[RALPH:BLOCKED:<reason>]]` — Cannot proceed, requires human intervention
+
+### Example Investigation
+
+```bash
+$ ralphctl reverse "Why does the auth token expire prematurely?"
+
+=== Iteration 1 starting ===
+[Claude explores token generation code...]
+
+=== Iteration 2 starting ===
+[Claude examines token validation logic...]
+
+=== Iteration 3 starting ===
+[Claude finds the issue and writes FINDINGS.md]
+
+Investigation complete: Token lifetime calculation uses seconds instead of milliseconds
+```
+
 ## Ralph Loop Files
+
+### Forward Mode (run)
 
 | File | Purpose |
 |------|---------|
@@ -207,7 +305,22 @@ The loop detects these signals in Claude's output:
 | `IMPLEMENTATION_PLAN.md` | Task list with checkboxes |
 | `PROMPT.md` | Orchestration prompt piped to Claude |
 | `ralph.log` | Iteration output log |
-| `.ralphctl/archive/` | Archived specs and plans |
+
+### Reverse Mode (reverse)
+
+| File | Purpose |
+|------|---------|
+| `QUESTION.md` | The investigation question |
+| `INVESTIGATION.md` | Running log of hypotheses with checkboxes |
+| `FINDINGS.md` | Final synthesized report |
+| `REVERSE_PROMPT.md` | Instructions for investigation loop |
+
+### Shared
+
+| File | Purpose |
+|------|---------|
+| `ralph.log` | Iteration output log (both modes) |
+| `.ralphctl/archive/` | Archived specs, plans, and investigations |
 
 ## License
 
