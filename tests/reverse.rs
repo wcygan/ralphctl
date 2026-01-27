@@ -441,3 +441,105 @@ fn reverse_without_args_exits_before_checking_claude() {
     // Template should still be created
     assert!(dir.path().join("QUESTION.md").exists());
 }
+
+// ==================== Signal Tests ====================
+
+#[test]
+fn reverse_continue_signal_proceeds_to_next_iteration() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Create mock claude that outputs CONTINUE signal
+    // This should cause the loop to continue without prompting
+    let mock_output = "Investigating hypothesis 1...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // With max-iterations=2 and CONTINUE signal, should run both iterations
+    // then exit with MAX_ITERATIONS code
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does auth fail?")
+        .arg("--max-iterations")
+        .arg("2")
+        .assert()
+        .code(2) // MAX_ITERATIONS because CONTINUE keeps looping
+        .stderr(predicate::str::contains("reached max iterations"));
+
+    // Verify both iterations ran
+    let log_content = fs::read_to_string(dir.path().join("ralph.log")).unwrap();
+    assert!(
+        log_content.contains("=== Iteration 1 starting ==="),
+        "Iteration 1 should be logged"
+    );
+    assert!(
+        log_content.contains("=== Iteration 2 starting ==="),
+        "Iteration 2 should be logged"
+    );
+}
+
+#[test]
+fn reverse_continue_signal_with_whitespace() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // CONTINUE signal can have leading/trailing whitespace on its line
+    let mock_output = "Investigating...\n  [[RALPH:CONTINUE]]  \n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Test question")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(2); // Runs one iteration with CONTINUE, then hits max
+}
+
+#[test]
+fn reverse_continue_shows_iteration_headers_for_all_iterations() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output = "Working on hypothesis...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    let output = ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does the test fail?")
+        .arg("--max-iterations")
+        .arg("3")
+        .assert()
+        .code(2)
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+    assert!(
+        stdout.contains("=== Iteration 1 starting ==="),
+        "Should show iteration 1 header"
+    );
+    assert!(
+        stdout.contains("=== Iteration 2 starting ==="),
+        "Should show iteration 2 header"
+    );
+    assert!(
+        stdout.contains("=== Iteration 3 starting ==="),
+        "Should show iteration 3 header"
+    );
+}
