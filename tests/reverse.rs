@@ -749,6 +749,269 @@ fn reverse_found_signal_takes_priority_over_continue() {
         .stdout(predicate::str::contains("Found it"));
 }
 
+// ==================== INCONCLUSIVE Signal Tests ====================
+
+#[test]
+fn reverse_inconclusive_signal_exits_with_code_4() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Mock claude outputs INCONCLUSIVE signal
+    let mock_output = "Investigating the authentication flow...\n\
+                       Examined multiple hypotheses but no clear answer.\n\
+                       [[RALPH:INCONCLUSIVE:Unable to determine root cause after examining auth.rs, session.rs, and middleware]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does authentication fail?")
+        .arg("--max-iterations")
+        .arg("10")
+        .assert()
+        .code(4) // Exit code 4 = INCONCLUSIVE
+        .stderr(predicate::str::contains(
+            "=== Investigation inconclusive ===",
+        ))
+        .stderr(predicate::str::contains(
+            "Unable to determine root cause after examining auth.rs, session.rs, and middleware",
+        ));
+}
+
+#[test]
+fn reverse_inconclusive_signal_stops_loop_immediately() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // INCONCLUSIVE signal should stop on first iteration, even with high max-iterations
+    let mock_output = "[[RALPH:INCONCLUSIVE:Cannot determine answer]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    let output = ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Quick question")
+        .arg("--max-iterations")
+        .arg("100") // High limit that should never be reached
+        .assert()
+        .code(4)
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+
+    // Should only have one iteration
+    assert!(
+        stdout.contains("=== Iteration 1 starting ==="),
+        "Should show iteration 1 header"
+    );
+    assert!(
+        !stdout.contains("=== Iteration 2 starting ==="),
+        "Should NOT start iteration 2 after INCONCLUSIVE"
+    );
+}
+
+#[test]
+fn reverse_inconclusive_signal_displays_reason() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let reason = "Exhausted all hypotheses without finding definitive evidence";
+    let mock_output = format!("Investigation work...\n[[RALPH:INCONCLUSIVE:{}]]\n", reason);
+    let bin_dir = create_mock_claude(&dir, &mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does the cache fail?")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(4)
+        .stderr(predicate::str::contains(
+            "=== Investigation inconclusive ===",
+        ))
+        .stderr(predicate::str::contains(reason));
+}
+
+#[test]
+fn reverse_inconclusive_signal_with_special_characters_in_reason() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Reason with special characters that might cause parsing issues
+    let mock_output =
+        "[[RALPH:INCONCLUSIVE:Could not trace `async fn process<T>()` - multiple code paths]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Async investigation")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(4)
+        .stdout(predicate::str::contains("process<T>()"))
+        .stdout(predicate::str::contains("multiple code paths"));
+}
+
+#[test]
+fn reverse_inconclusive_signal_with_whitespace() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // INCONCLUSIVE signal with leading/trailing whitespace on its line
+    let mock_output = "Investigating...\n  [[RALPH:INCONCLUSIVE:No answer found]]  \n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Whitespace test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(4)
+        .stdout(predicate::str::contains("No answer found"));
+}
+
+#[test]
+fn reverse_inconclusive_signal_logs_to_ralph_log() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output =
+        "Investigation output before signal.\n[[RALPH:INCONCLUSIVE:Logged inconclusive]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Log test question")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(4);
+
+    // Verify ralph.log was created and contains the output
+    let log_path = dir.path().join("ralph.log");
+    assert!(log_path.exists(), "ralph.log should be created");
+
+    let log_content = fs::read_to_string(&log_path).unwrap();
+    assert!(
+        log_content.contains("Investigation output before signal"),
+        "Log should contain claude output"
+    );
+    assert!(
+        log_content.contains("[[RALPH:INCONCLUSIVE:Logged inconclusive]]"),
+        "Log should contain the INCONCLUSIVE signal"
+    );
+}
+
+#[test]
+fn reverse_inconclusive_signal_takes_priority_over_continue() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Both CONTINUE and INCONCLUSIVE in output - INCONCLUSIVE should win per priority rules
+    // Priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE
+    let mock_output =
+        "Working...\n[[RALPH:CONTINUE]]\nMore work...\n[[RALPH:INCONCLUSIVE:Giving up]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Priority test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(4) // INCONCLUSIVE wins over CONTINUE
+        .stdout(predicate::str::contains("Giving up"));
+}
+
+#[test]
+fn reverse_found_signal_takes_priority_over_inconclusive() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Both FOUND and INCONCLUSIVE in output - FOUND should win per priority rules
+    // Priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE
+    let mock_output =
+        "Working...\n[[RALPH:INCONCLUSIVE:Maybe]]\nMore work...\n[[RALPH:FOUND:Definitely found it]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Priority test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success() // FOUND wins over INCONCLUSIVE, so exit 0
+        .stdout(predicate::str::contains("Definitely found it"));
+}
+
+#[test]
+fn reverse_inconclusive_signal_with_colon_in_reason() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Reason containing colons (should not break parsing)
+    let mock_output =
+        "[[RALPH:INCONCLUSIVE:Checked files: auth.rs, session.rs, none had the issue]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Colon test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(4)
+        .stdout(predicate::str::contains("Checked files: auth.rs"))
+        .stdout(predicate::str::contains("none had the issue"));
+}
+
 #[test]
 fn reverse_found_signal_with_colon_in_summary() {
     let dir = temp_dir();
