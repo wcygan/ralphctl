@@ -340,6 +340,12 @@ fn run_cmd(max_iterations: u32, pause: bool, model: Option<&str>) -> Result<()> 
             std::process::exit(error::exit::BLOCKED);
         }
 
+        // If no magic string detected, prompt user for action (unless --pause will prompt anyway)
+        if !pause && run::prompt_no_signal()? == run::NoSignalAction::Stop {
+            println!("Stopped by user.");
+            return Ok(());
+        }
+
         // Prompt for confirmation if --pause flag is set
         if pause && run::prompt_continue()? == run::PauseAction::Stop {
             println!("Stopped by user.");

@@ -111,6 +111,38 @@ pub fn prompt_continue() -> Result<PauseAction> {
     }
 }
 
+/// Result of prompting user when no magic string was detected.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NoSignalAction {
+    /// Continue to next iteration
+    Continue,
+    /// Stop the loop gracefully
+    Stop,
+}
+
+/// Prompt user for action when no magic string (DONE or BLOCKED) was detected.
+///
+/// This fallback ensures the loop doesn't continue indefinitely when claude
+/// fails to output a proper termination signal.
+///
+/// Returns `NoSignalAction::Continue` on 'c', 'C', or empty input.
+/// Returns `NoSignalAction::Stop` on 's', 'S', 'q', or 'Q'.
+pub fn prompt_no_signal() -> Result<NoSignalAction> {
+    eprintln!("warning: no [[RALPH:DONE]] or [[RALPH:BLOCKED:...]] signal detected");
+    eprint!("Continue or stop? [C/s] ");
+    io::stderr().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    let answer = input.trim().to_lowercase();
+    if answer.is_empty() || answer == "c" || answer == "continue" {
+        Ok(NoSignalAction::Continue)
+    } else {
+        Ok(NoSignalAction::Stop)
+    }
+}
+
 /// Print interrupt summary showing iterations completed and task progress.
 ///
 /// Format: `Interrupted after N iterations. X/Y tasks complete.`
@@ -711,5 +743,26 @@ mod tests {
         };
         assert!(result.was_interrupted);
         assert!(!result.success);
+    }
+
+    #[test]
+    fn test_no_signal_action_equality() {
+        assert_eq!(NoSignalAction::Continue, NoSignalAction::Continue);
+        assert_eq!(NoSignalAction::Stop, NoSignalAction::Stop);
+        assert_ne!(NoSignalAction::Continue, NoSignalAction::Stop);
+    }
+
+    #[test]
+    fn test_no_signal_action_clone() {
+        let action = NoSignalAction::Continue;
+        let cloned = action.clone();
+        assert_eq!(action, cloned);
+    }
+
+    #[test]
+    fn test_no_signal_action_debug() {
+        let action = NoSignalAction::Stop;
+        let debug_str = format!("{:?}", action);
+        assert_eq!(debug_str, "Stop");
     }
 }

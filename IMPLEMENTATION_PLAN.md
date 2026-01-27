@@ -58,7 +58,7 @@
 - [x] Implement Ctrl+C signal handling that forwards to child process
 - [x] Implement interrupt summary printing (`Interrupted after N iterations. X/Y tasks complete.`)
 - [x] Implement `--pause` flag with `Continue? [Y/n]` prompt
-- [ ] Implement fallback user prompt when no magic string detected after iteration
+- [x] Implement fallback user prompt when no magic string detected after iteration
 - [x] Write tests for logging format
 
 ## Phase 7: Distribution
