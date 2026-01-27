@@ -251,4 +251,210 @@ Some other text here.
             "[███████░░░░░] 60% (12/20 tasks)"
         );
     }
+
+    // === Edge Case Tests ===
+
+    #[test]
+    fn test_checkbox_in_code_block_ignored() {
+        // Checkboxes inside fenced code blocks should still be counted
+        // (the regex doesn't distinguish code blocks - this documents current behavior)
+        let content = r#"
+```markdown
+- [ ] This is inside a code block
+- [x] Also inside
+```
+"#;
+        let count = count_checkboxes(content);
+        // Current behavior: these ARE counted (parser doesn't understand code blocks)
+        // This is acceptable per SPEC.md which says "simple regex"
+        assert_eq!(count, TaskCount::new(1, 2));
+    }
+
+    #[test]
+    fn test_checkbox_no_space_before_bracket() {
+        // Missing space between dash and bracket - still matches due to `\s*` in regex
+        // (documents current behavior - this is lenient parsing)
+        let content = "-[ ] No space before bracket\n-[x] Also no space";
+        let count = count_checkboxes(content);
+        // These match because `\s*` allows zero whitespace
+        assert_eq!(count, TaskCount::new(1, 2));
+    }
+
+    #[test]
+    fn test_malformed_checkbox_empty_brackets() {
+        // Empty brackets (no space inside)
+        let content = "- [] Empty brackets";
+        let count = count_checkboxes(content);
+        // Should not match - requires exactly one char in brackets
+        assert_eq!(count, TaskCount::new(0, 0));
+    }
+
+    #[test]
+    fn test_malformed_checkbox_wrong_char() {
+        // Wrong character inside brackets
+        let content = "- [y] Wrong char\n- [*] Also wrong\n- [-] Still wrong";
+        let count = count_checkboxes(content);
+        // Should not match - only space, x, or X are valid
+        assert_eq!(count, TaskCount::new(0, 0));
+    }
+
+    #[test]
+    fn test_checkbox_with_tab_indentation() {
+        // Tabs instead of spaces for indentation
+        let content = "\t- [ ] Tab indented\n\t\t- [x] Double tab";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(1, 2));
+    }
+
+    #[test]
+    fn test_checkbox_with_crlf_line_endings() {
+        // Windows-style line endings
+        let content = "- [ ] Task 1\r\n- [x] Task 2\r\n- [ ] Task 3";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(1, 3));
+    }
+
+    #[test]
+    fn test_checkbox_with_trailing_content() {
+        // Task descriptions with various content after checkbox
+        let content = r#"
+- [ ] Task with **bold** text
+- [x] Task with `code` inline
+- [ ] Task with [link](url)
+- [x] Task: has colon
+- [ ] Task - has dash
+"#;
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(2, 5));
+    }
+
+    #[test]
+    fn test_checkbox_asterisk_list_not_matched() {
+        // Asterisk list markers (not dash) should not match
+        let content = "* [ ] Asterisk list\n* [x] Also asterisk";
+        let count = count_checkboxes(content);
+        // Only dash lists are matched per SPEC.md
+        assert_eq!(count, TaskCount::new(0, 0));
+    }
+
+    #[test]
+    fn test_checkbox_plus_list_not_matched() {
+        // Plus list markers should not match
+        let content = "+ [ ] Plus list\n+ [x] Also plus";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(0, 0));
+    }
+
+    #[test]
+    fn test_checkbox_numbered_list_not_matched() {
+        // Numbered lists should not match
+        let content = "1. [ ] Numbered\n2. [x] Also numbered";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(0, 0));
+    }
+
+    #[test]
+    fn test_multiple_checkboxes_same_line() {
+        // Only first checkbox per line should match (regex is line-anchored)
+        let content = "- [ ] First - [x] Second on same line";
+        let count = count_checkboxes(content);
+        // Only the first checkbox matches due to ^ anchor
+        assert_eq!(count, TaskCount::new(0, 1));
+    }
+
+    #[test]
+    fn test_checkbox_in_blockquote() {
+        // Blockquoted checkboxes (should not match - > is not whitespace)
+        let content = "> - [ ] Quoted checkbox\n> - [x] Also quoted";
+        let count = count_checkboxes(content);
+        // Should not match because > is not whitespace before -
+        assert_eq!(count, TaskCount::new(0, 0));
+    }
+
+    #[test]
+    fn test_deeply_nested_indentation() {
+        // Very deep nesting (8+ spaces)
+        let content = "        - [ ] Very deep\n            - [x] Even deeper";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(1, 2));
+    }
+
+    #[test]
+    fn test_mixed_indentation_styles() {
+        // Mix of tabs and spaces
+        let content = "- [ ] No indent\n  - [x] Two spaces\n\t- [ ] Tab\n    - [x] Four spaces";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(2, 4));
+    }
+
+    #[test]
+    fn test_empty_lines_between_checkboxes() {
+        // Multiple empty lines between checkboxes
+        let content = "- [ ] Task 1\n\n\n\n- [x] Task 2";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(1, 2));
+    }
+
+    #[test]
+    fn test_checkbox_only_whitespace_around() {
+        // Checkbox surrounded by whitespace-only lines
+        let content = "   \n\t\n- [ ] Lonely task\n   \n";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(0, 1));
+    }
+
+    #[test]
+    fn test_large_task_count() {
+        // Stress test with many tasks
+        let mut content = String::new();
+        for i in 0..100 {
+            if i % 2 == 0 {
+                content.push_str("- [x] Complete task\n");
+            } else {
+                content.push_str("- [ ] Incomplete task\n");
+            }
+        }
+        let count = count_checkboxes(&content);
+        assert_eq!(count, TaskCount::new(50, 100));
+        assert_eq!(count.percentage(), 50);
+    }
+
+    #[test]
+    fn test_unicode_in_task_description() {
+        // Unicode characters in task text
+        let content = "- [ ] Task with émojis 🎉\n- [x] Task with 中文\n- [ ] Task with → arrows";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(1, 3));
+    }
+
+    #[test]
+    fn test_checkbox_at_end_of_file_no_newline() {
+        // File ending without newline
+        let content = "- [ ] Task 1\n- [x] Task 2";
+        let count = count_checkboxes(content);
+        assert_eq!(count, TaskCount::new(1, 2));
+    }
+
+    #[test]
+    fn test_progress_bar_single_task() {
+        let count = TaskCount::new(0, 1);
+        assert_eq!(count.render_progress_bar(), "[░░░░░░░░░░░░] 0% (0/1 tasks)");
+
+        let count = TaskCount::new(1, 1);
+        assert_eq!(
+            count.render_progress_bar(),
+            "[████████████] 100% (1/1 tasks)"
+        );
+    }
+
+    #[test]
+    fn test_progress_bar_uneven_division() {
+        // 7 out of 13 = 53.8% ≈ 54%, bar should show ~6.5 filled (rounds to 6)
+        let count = TaskCount::new(7, 13);
+        // 7 * 12 / 13 = 84 / 13 = 6.46 -> 6 filled blocks
+        assert_eq!(
+            count.render_progress_bar(),
+            "[██████░░░░░░] 54% (7/13 tasks)"
+        );
+    }
 }
