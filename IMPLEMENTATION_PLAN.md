@@ -132,7 +132,7 @@
 ## Phase 15: Reverse Mode Testing
 
 - [x] Write integration test for `ralphctl reverse "question"` happy path
-- [ ] Write integration test for `ralphctl reverse` without args (QUESTION.md exists)
+- [x] Write integration test for `ralphctl reverse` without args (QUESTION.md exists)
 - [ ] Write integration test for `ralphctl reverse` without args (creates template)
 - [ ] Write integration test for CONTINUE signal (loop continues)
 - [ ] Write integration test for FOUND signal termination
