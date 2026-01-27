@@ -1036,3 +1036,332 @@ fn reverse_found_signal_with_colon_in_summary() {
         .stdout(predicate::str::contains("Root cause: missing null check"))
         .stdout(predicate::str::contains("parse_config()"));
 }
+
+// ==================== BLOCKED Signal Tests ====================
+
+#[test]
+fn reverse_blocked_signal_exits_with_code_3() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Mock claude outputs BLOCKED signal
+    let mock_output = "Investigating the authentication flow...\n\
+                       Cannot proceed without access to production database.\n\
+                       [[RALPH:BLOCKED:Need production database credentials to continue]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does authentication fail?")
+        .arg("--max-iterations")
+        .arg("10")
+        .assert()
+        .code(3) // Exit code 3 = BLOCKED
+        .stderr(predicate::str::contains("blocked:"))
+        .stderr(predicate::str::contains(
+            "Need production database credentials to continue",
+        ));
+}
+
+#[test]
+fn reverse_blocked_signal_stops_loop_immediately() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // BLOCKED signal should stop on first iteration, even with high max-iterations
+    let mock_output = "[[RALPH:BLOCKED:Cannot access required file]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    let output = ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Quick question")
+        .arg("--max-iterations")
+        .arg("100") // High limit that should never be reached
+        .assert()
+        .code(3)
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+
+    // Should only have one iteration
+    assert!(
+        stdout.contains("=== Iteration 1 starting ==="),
+        "Should show iteration 1 header"
+    );
+    assert!(
+        !stdout.contains("=== Iteration 2 starting ==="),
+        "Should NOT start iteration 2 after BLOCKED"
+    );
+}
+
+#[test]
+fn reverse_blocked_signal_displays_reason() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let reason = "Missing API key for external service";
+    let mock_output = format!("Investigation work...\n[[RALPH:BLOCKED:{}]]\n", reason);
+    let bin_dir = create_mock_claude(&dir, &mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does the API fail?")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("blocked:"))
+        .stderr(predicate::str::contains(reason));
+}
+
+#[test]
+fn reverse_blocked_signal_with_special_characters_in_reason() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Reason with special characters that might cause parsing issues
+    let mock_output = "[[RALPH:BLOCKED:Cannot parse `config.json` - invalid JSON at line 42]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Config investigation")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("config.json"))
+        .stderr(predicate::str::contains("invalid JSON at line 42"));
+}
+
+#[test]
+fn reverse_blocked_signal_with_whitespace() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // BLOCKED signal with leading/trailing whitespace on its line
+    let mock_output = "Investigating...\n  [[RALPH:BLOCKED:Access denied]]  \n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Whitespace test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("Access denied"));
+}
+
+#[test]
+fn reverse_blocked_signal_with_empty_reason() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // BLOCKED signal with empty reason should still work
+    let mock_output = "[[RALPH:BLOCKED:]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Empty reason test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3) // Still exits with BLOCKED code
+        .stderr(predicate::str::contains("blocked:"));
+}
+
+#[test]
+fn reverse_blocked_signal_logs_to_ralph_log() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output = "Investigation output before signal.\n[[RALPH:BLOCKED:Logged blocker]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Log test question")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3);
+
+    // Verify ralph.log was created and contains the output
+    let log_path = dir.path().join("ralph.log");
+    assert!(log_path.exists(), "ralph.log should be created");
+
+    let log_content = fs::read_to_string(&log_path).unwrap();
+    assert!(
+        log_content.contains("Investigation output before signal"),
+        "Log should contain claude output"
+    );
+    assert!(
+        log_content.contains("[[RALPH:BLOCKED:Logged blocker]]"),
+        "Log should contain the BLOCKED signal"
+    );
+}
+
+#[test]
+fn reverse_blocked_signal_takes_priority_over_found() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Both FOUND and BLOCKED in output - BLOCKED should win per priority rules
+    // Priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE
+    let mock_output =
+        "Working...\n[[RALPH:FOUND:Answer found]]\nMore work...\n[[RALPH:BLOCKED:But actually blocked]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Priority test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3) // BLOCKED wins over FOUND
+        .stderr(predicate::str::contains("But actually blocked"));
+}
+
+#[test]
+fn reverse_blocked_signal_takes_priority_over_inconclusive() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Both INCONCLUSIVE and BLOCKED in output - BLOCKED should win
+    // Priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE
+    let mock_output =
+        "Working...\n[[RALPH:INCONCLUSIVE:Not sure]]\n[[RALPH:BLOCKED:Cannot proceed]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Priority test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3) // BLOCKED wins over INCONCLUSIVE
+        .stderr(predicate::str::contains("Cannot proceed"));
+}
+
+#[test]
+fn reverse_blocked_signal_takes_priority_over_continue() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Both CONTINUE and BLOCKED in output - BLOCKED should win
+    // Priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE
+    let mock_output = "Working...\n[[RALPH:CONTINUE]]\n[[RALPH:BLOCKED:Must stop]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Priority test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3) // BLOCKED wins over CONTINUE
+        .stderr(predicate::str::contains("Must stop"));
+}
+
+#[test]
+fn reverse_blocked_signal_takes_priority_over_all_signals() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // All signals present - BLOCKED should win
+    let mock_output = "[[RALPH:CONTINUE]]\n[[RALPH:FOUND:Found]]\n[[RALPH:INCONCLUSIVE:Maybe]]\n[[RALPH:BLOCKED:Highest priority]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("All signals test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("Highest priority"));
+}
+
+#[test]
+fn reverse_blocked_signal_with_colon_in_reason() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Reason containing colons (should not break parsing)
+    let mock_output = "[[RALPH:BLOCKED:Error: file not found: /path/to/config.yaml]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Colon test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("Error: file not found"))
+        .stderr(predicate::str::contains("/path/to/config.yaml"));
+}
