@@ -90,10 +90,10 @@
 ## Phase 10: Reverse Mode Signal Detection
 
 - [x] Create `reverse.rs` module with `ReverseSignal` enum (Continue, Found, Inconclusive, Blocked, NoSignal)
-- [ ] Implement `detect_reverse_signal()` function with BLOCKED → FOUND → INCONCLUSIVE → CONTINUE priority
-- [ ] Add signal marker constants (RALPH_FOUND_PREFIX, RALPH_INCONCLUSIVE_PREFIX)
-- [ ] Write unit tests for all signal detection scenarios (exact match, with whitespace, inline rejection)
-- [ ] Write tests for signal priority (BLOCKED → FOUND → INCONCLUSIVE → CONTINUE)
+- [x] Implement `detect_reverse_signal()` function with BLOCKED → FOUND → INCONCLUSIVE → CONTINUE priority
+- [x] Add signal marker constants (RALPH_FOUND_PREFIX, RALPH_INCONCLUSIVE_PREFIX)
+- [x] Write unit tests for all signal detection scenarios (exact match, with whitespace, inline rejection)
+- [x] Write tests for signal priority (BLOCKED → FOUND → INCONCLUSIVE → CONTINUE)
 
 ## Phase 11: Reverse Mode Question Handling
 
