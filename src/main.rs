@@ -75,7 +75,7 @@ const IMPLEMENTATION_PLAN: &str = "IMPLEMENTATION_PLAN.md";
 fn status_cmd() -> Result<()> {
     let path = Path::new(IMPLEMENTATION_PLAN);
     if !path.exists() {
-        anyhow::bail!("{} not found", IMPLEMENTATION_PLAN);
+        error::die(&format!("{} not found", IMPLEMENTATION_PLAN));
     }
 
     let content = fs::read_to_string(path)?;
