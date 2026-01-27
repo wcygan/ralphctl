@@ -1,0 +1,23 @@
+# Cross.toml - Configuration for cross-rs cross-compilation
+# https://github.com/cross-rs/cross
+
+[build.env]
+passthrough = [
+    "RUSTFLAGS",
+]
+
+# Linux x86_64 (GNU libc)
+[target.x86_64-unknown-linux-gnu]
+# Uses default cross image
+
+# Linux ARM64 (GNU libc)
+[target.aarch64-unknown-linux-gnu]
+# Uses default cross image
+
+# Linux x86_64 (musl - fully static binary)
+[target.x86_64-unknown-linux-musl]
+# Uses default cross image
+
+# Linux ARM64 (musl - fully static binary)
+[target.aarch64-unknown-linux-musl]
+# Uses default cross image
