@@ -2,6 +2,7 @@ mod cli;
 mod error;
 mod files;
 mod parser;
+mod reverse;
 mod run;
 mod templates;
 
