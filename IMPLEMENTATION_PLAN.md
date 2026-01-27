@@ -36,8 +36,8 @@
 - [x] Implement XDG-compliant cache directory resolution using dirs crate
 - [x] Implement cache-first-then-fetch logic with network fallback to cache
 - [x] Implement `init` subcommand that writes SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md
-- [ ] Add `--force` flag to overwrite existing files
-- [ ] Add file existence check that errors without --force
+- [x] Add `--force` flag to overwrite existing files
+- [x] Add file existence check that errors without --force
 - [ ] Write integration tests for init command with mock HTTP responses
 
 ## Phase 5: Run Command Core
