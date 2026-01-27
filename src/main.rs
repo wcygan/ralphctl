@@ -81,7 +81,7 @@ fn status_cmd() -> Result<()> {
     let content = fs::read_to_string(path)?;
     let count = parser::count_checkboxes(&content);
 
-    println!("{}/{}", count.completed, count.total);
+    println!("{}", count.render_progress_bar());
 
     Ok(())
 }

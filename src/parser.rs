@@ -28,6 +28,31 @@ impl TaskCount {
         }
         ((self.completed as f64 / self.total as f64) * 100.0).round() as u8
     }
+
+    /// Render a Unicode progress bar with stats.
+    ///
+    /// Format: `[████████░░░░] 60% (12/20 tasks)`
+    pub fn render_progress_bar(&self) -> String {
+        const BAR_WIDTH: usize = 12;
+        const FILLED: char = '█';
+        const EMPTY: char = '░';
+
+        let pct = self.percentage();
+        let filled_count = if self.total == 0 {
+            0
+        } else {
+            (self.completed * BAR_WIDTH) / self.total
+        };
+        let empty_count = BAR_WIDTH - filled_count;
+
+        let filled: String = std::iter::repeat_n(FILLED, filled_count).collect();
+        let empty: String = std::iter::repeat_n(EMPTY, empty_count).collect();
+
+        format!(
+            "[{}{}] {}% ({}/{} tasks)",
+            filled, empty, pct, self.completed, self.total
+        )
+    }
 }
 
 /// Count completed and total checkboxes in markdown content.
@@ -183,5 +208,47 @@ Some other text here.
         let count = count_checkboxes(content);
         assert_eq!(count, TaskCount::new(2, 4));
         assert_eq!(count.percentage(), 50);
+    }
+
+    #[test]
+    fn test_progress_bar_empty() {
+        let count = TaskCount::new(0, 0);
+        assert_eq!(count.render_progress_bar(), "[░░░░░░░░░░░░] 0% (0/0 tasks)");
+    }
+
+    #[test]
+    fn test_progress_bar_zero_percent() {
+        let count = TaskCount::new(0, 10);
+        assert_eq!(
+            count.render_progress_bar(),
+            "[░░░░░░░░░░░░] 0% (0/10 tasks)"
+        );
+    }
+
+    #[test]
+    fn test_progress_bar_half() {
+        let count = TaskCount::new(6, 12);
+        assert_eq!(
+            count.render_progress_bar(),
+            "[██████░░░░░░] 50% (6/12 tasks)"
+        );
+    }
+
+    #[test]
+    fn test_progress_bar_full() {
+        let count = TaskCount::new(20, 20);
+        assert_eq!(
+            count.render_progress_bar(),
+            "[████████████] 100% (20/20 tasks)"
+        );
+    }
+
+    #[test]
+    fn test_progress_bar_60_percent() {
+        let count = TaskCount::new(12, 20);
+        assert_eq!(
+            count.render_progress_bar(),
+            "[███████░░░░░] 60% (12/20 tasks)"
+        );
     }
 }
