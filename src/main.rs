@@ -5,6 +5,7 @@ mod parser;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::fs;
+use std::io::{self, Write};
 use std::path::Path;
 
 #[derive(Parser)]
@@ -64,7 +65,7 @@ async fn main() -> Result<()> {
             status_cmd()?;
         }
         Command::Clean { force } => {
-            println!("clean (force={})", force);
+            clean_cmd(force)?;
         }
     }
 
@@ -81,6 +82,43 @@ fn status_cmd() -> Result<()> {
     let count = parser::count_checkboxes(&content);
 
     println!("{}", count.render_progress_bar());
+
+    Ok(())
+}
+
+fn clean_cmd(force: bool) -> Result<()> {
+    let cwd = Path::new(".");
+    let existing_files = files::find_existing_ralph_files(cwd);
+
+    if existing_files.is_empty() {
+        println!("No ralph files found.");
+        return Ok(());
+    }
+
+    let file_count = existing_files.len();
+
+    if !force {
+        eprint!("Delete {} ralph files? [y/N] ", file_count);
+        io::stderr().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+
+        let answer = input.trim().to_lowercase();
+        if answer != "y" && answer != "yes" {
+            std::process::exit(error::exit::ERROR);
+        }
+    }
+
+    for path in &existing_files {
+        fs::remove_file(path)?;
+    }
+
+    println!(
+        "Deleted {} file{}.",
+        file_count,
+        if file_count == 1 { "" } else { "s" }
+    );
 
     Ok(())
 }
