@@ -30,32 +30,60 @@ You are operating in an autonomous development loop building `ralphctl`, a Rust 
 2. Update the "Last Updated" timestamp to today's date
 3. If you discovered new tasks needed, add them in the appropriate phase
 
-### Step 4: Exit
+### Step 4: Report & Signal
 
-After completing ONE task, simply exit. The orchestrator will restart you for the next task.
+Before outputting a signal, you MUST provide a structured summary of the work completed. This helps human observers understand what happened in this iteration.
 
-Do NOT output any special signal after completing a single task - just finish your work and stop.
+**Output this summary format:**
 
-**Only output `[[RALPH:DONE]]` when ALL tasks in IMPLEMENTATION_PLAN.md are marked `- [x]`.**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ITERATION SUMMARY                                               │
+├─────────────────────────────────────────────────────────────────┤
+│ Task: <task description from IMPLEMENTATION_PLAN.md>            │
+│                                                                 │
+│ Changes:                                                        │
+│   • <file1> - <what changed>                                    │
+│   • <file2> - <what changed>                                    │
+│                                                                 │
+│ Tests: <X passed, Y failed> (cargo test output summary)         │
+│ Lint: <clean | N warnings> (cargo clippy output summary)        │
+│ Commit: <hash> - <message>                                      │
+│                                                                 │
+│ Progress: <completed>/<total> tasks (<percentage>%)             │
+│ Next: <brief description of next task, or "None - all complete">│
+└─────────────────────────────────────────────────────────────────┘
+```
 
-If you encounter a blocker you cannot resolve, output:
+Then output exactly one of these signals on its own line:
 
+**Task completed, more tasks remain:**
+```
+[[RALPH:CONTINUE]]
+```
+
+**All tasks complete (every checkbox is `[x]`):**
+```
+[[RALPH:DONE]]
+```
+
+**Cannot proceed due to blocker:**
 ```
 [[RALPH:BLOCKED:<reason>]]
 ```
-
-Replace `<reason>` with a brief explanation of what's blocking progress.
 
 ---
 
 ## Rules
 
-1. **One task per iteration** - Complete one checkbox, then signal done
+1. **One task per iteration** - Complete one checkbox, then signal
 2. **Always test** - No task is done without running `cargo test`
 3. **Always commit** - Each task = one atomic commit with descriptive message
-4. **Update the plan** - Mark completion before signaling done
-5. **Don't gold-plate** - Do exactly what the task says, no more
-6. **Follow SPEC.md** - Use the technology decisions and patterns specified
+4. **Update the plan** - Mark completion before signaling
+5. **Always report** - Output the iteration summary before every signal
+6. **Always signal** - End every iteration with exactly one signal
+7. **Don't gold-plate** - Do exactly what the task says, no more
+8. **Follow SPEC.md** - Use the technology decisions and patterns specified
 
 ## Technology Stack (from SPEC.md)
 
@@ -73,19 +101,19 @@ Replace `<reason>` with a brief explanation of what's blocking progress.
 - Use `anyhow::Result` for fallible functions
 - Prefer early returns over deep nesting
 
-## Exit Signals
+## Exit Signals (REQUIRED)
 
-**Normal iteration**: Complete one task, update the plan, then stop. No special output needed.
+Every iteration MUST end with:
+1. An **ITERATION SUMMARY** box (so observers know what happened)
+2. Exactly one signal on its own line
 
-**All tasks complete**: When every task in IMPLEMENTATION_PLAN.md shows `- [x]`, output exactly:
-```
-[[RALPH:DONE]]
-```
+| Signal | Meaning |
+|--------|---------|
+| `[[RALPH:CONTINUE]]` | Task completed, more tasks remain — orchestrator will start next iteration |
+| `[[RALPH:DONE]]` | All tasks complete — orchestrator will exit successfully |
+| `[[RALPH:BLOCKED:<reason>]]` | Cannot proceed — orchestrator will exit with error |
 
-**Blocked**: If you cannot proceed, output exactly:
-```
-[[RALPH:BLOCKED:<reason>]]
-```
+The orchestrator reads these signals to decide what to do next. Without a signal, the loop will pause and ask for manual intervention.
 
 ---
 

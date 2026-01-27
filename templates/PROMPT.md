@@ -29,9 +29,31 @@ You are operating in an autonomous development loop.
 1. Mark the completed task as `- [x]` in `IMPLEMENTATION_PLAN.md`
 2. If you discovered new tasks needed, add them in the appropriate phase
 
-### Step 4: Signal Completion
+### Step 4: Report & Signal
 
-After completing your work, you MUST output exactly one of these signals on its own line:
+Before outputting a signal, you MUST provide a structured summary of the work completed. This helps human observers understand what happened in this iteration.
+
+**Output this summary format:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ITERATION SUMMARY                                               │
+├─────────────────────────────────────────────────────────────────┤
+│ Task: <task description from IMPLEMENTATION_PLAN.md>            │
+│                                                                 │
+│ Changes:                                                        │
+│   • <file1> - <what changed>                                    │
+│   • <file2> - <what changed>                                    │
+│                                                                 │
+│ Tests: <X passed, Y failed, or "N/A">                           │
+│ Commit: <commit hash (short)> - <commit message>                │
+│                                                                 │
+│ Progress: <completed>/<total> tasks (<percentage>%)             │
+│ Next: <brief description of next task, or "None - all complete">│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Then output exactly one of these signals on its own line:
 
 **Task completed, more tasks remain:**
 ```
@@ -56,13 +78,16 @@ After completing your work, you MUST output exactly one of these signals on its 
 2. **Always test** - No task is done without running tests
 3. **Always commit** - Each task = one atomic commit
 4. **Update the plan** - Mark completion before signaling
-5. **Always signal** - End every iteration with the appropriate signal
-6. **Don't gold-plate** - Do exactly what the task says, no more
-7. **Follow SPEC.md** - Use the technology decisions and patterns specified
+5. **Always report** - Output the iteration summary before every signal
+6. **Always signal** - End every iteration with the appropriate signal
+7. **Don't gold-plate** - Do exactly what the task says, no more
+8. **Follow SPEC.md** - Use the technology decisions and patterns specified
 
 ## Exit Signals (REQUIRED)
 
-Every iteration MUST end with exactly one of these signals on its own line:
+Every iteration MUST end with:
+1. An **ITERATION SUMMARY** box (so observers know what happened)
+2. Exactly one signal on its own line
 
 | Signal | Meaning |
 |--------|---------|
