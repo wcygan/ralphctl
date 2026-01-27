@@ -3,6 +3,8 @@ mod parser;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::fs;
+use std::path::Path;
 
 #[derive(Parser)]
 #[command(name = "ralphctl")]
@@ -58,12 +60,28 @@ async fn main() -> Result<()> {
             println!("run (max_iterations={}, pause={})", max_iterations, pause);
         }
         Command::Status => {
-            println!("status");
+            status_cmd()?;
         }
         Command::Clean { force } => {
             println!("clean (force={})", force);
         }
     }
+
+    Ok(())
+}
+
+const IMPLEMENTATION_PLAN: &str = "IMPLEMENTATION_PLAN.md";
+
+fn status_cmd() -> Result<()> {
+    let path = Path::new(IMPLEMENTATION_PLAN);
+    if !path.exists() {
+        anyhow::bail!("{} not found", IMPLEMENTATION_PLAN);
+    }
+
+    let content = fs::read_to_string(path)?;
+    let count = parser::count_checkboxes(&content);
+
+    println!("{}/{}", count.completed, count.total);
 
     Ok(())
 }
