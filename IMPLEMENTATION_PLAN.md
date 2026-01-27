@@ -44,7 +44,7 @@
 
 - [x] Implement PROMPT.md file reading
 - [x] Implement subprocess spawning for `claude -p` with stdin piping
-- [ ] Implement real-time stdout/stderr streaming (pass-through)
+- [x] Implement real-time stdout/stderr streaming (pass-through)
 - [ ] Implement iteration header printing (`=== Iteration N starting ===`)
 - [ ] Implement magic string detection for `[[RALPH:DONE]]`
 - [ ] Implement magic string detection for `[[RALPH:BLOCKED:<reason>]]` with reason extraction
