@@ -19,6 +19,10 @@ pub const TEMPLATE_FILES: &[&str] = &["SPEC.md", "IMPLEMENTATION_PLAN.md", "PROM
 /// Template file name for reverse mode.
 pub const REVERSE_PROMPT_TEMPLATE: &str = "REVERSE_PROMPT.md";
 
+/// Embedded reverse mode prompt template (compiled into binary).
+/// This ensures the template is always available without network access.
+const EMBEDDED_REVERSE_PROMPT: &str = include_str!("../templates/REVERSE_PROMPT.md");
+
 /// Application name for cache directory.
 const APP_NAME: &str = "ralphctl";
 
@@ -197,21 +201,17 @@ pub async fn get_all_templates() -> Result<Vec<(&'static str, String)>> {
     Ok(templates)
 }
 
-/// Fetch the reverse mode prompt template with network-first strategy and cache fallback.
+/// Get the reverse mode prompt template (embedded at compile time).
 ///
-/// Tries to fetch REVERSE_PROMPT.md from GitHub first. On success, the template
-/// is saved to the local cache for offline use. On network failure, falls back
-/// to the cached version if available.
+/// Unlike forward mode templates which are fetched from GitHub, the reverse
+/// mode template is embedded in the binary. This ensures it's always available
+/// and matches the signal parsing logic in the CLI.
 ///
 /// # Returns
 ///
 /// The REVERSE_PROMPT.md template content as a string.
-///
-/// # Errors
-///
-/// Returns an error only if both the network fetch fails AND no cached version exists.
-pub async fn get_reverse_template() -> Result<String> {
-    get_template(REVERSE_PROMPT_TEMPLATE).await
+pub fn get_reverse_template() -> String {
+    EMBEDDED_REVERSE_PROMPT.to_string()
 }
 
 #[cfg(test)]

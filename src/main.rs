@@ -768,8 +768,8 @@ async fn reverse_cmd(
         error::die("claude not found in PATH");
     }
 
-    // Step 3: Fetch REVERSE_PROMPT.md template
-    let prompt = templates::get_reverse_template().await?;
+    // Step 3: Get REVERSE_PROMPT.md template (embedded in binary)
+    let prompt = templates::get_reverse_template();
 
     // Write REVERSE_PROMPT.md to current directory for reference
     fs::write(files::REVERSE_PROMPT_FILE, &prompt)?;
