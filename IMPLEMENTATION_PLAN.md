@@ -75,7 +75,7 @@
 - [x] Create templates/PROMPT.md with full ralph orchestration prompt
 - [x] Write README.md with installation instructions and usage examples
 - [x] Polish --help text in clap with clear descriptions and examples
-- [ ] Create CHANGELOG.md for v0.1.0 release
+- [x] Create CHANGELOG.md for v0.1.0 release
 
 ---
 
