@@ -7,7 +7,11 @@
 
 #![allow(dead_code)] // Components used by future reverse mode implementation
 
+use crate::files::QUESTION_FILE;
 use crate::run;
+use anyhow::{Context, Result};
+use std::fs;
+use std::path::Path;
 
 /// Reverse mode signal types.
 ///
@@ -35,6 +39,61 @@ pub const RALPH_INCONCLUSIVE_PREFIX: &str = "[[RALPH:INCONCLUSIVE:";
 
 /// Magic string suffix (shared with other signals).
 const SIGNAL_SUFFIX: &str = "]]";
+
+/// Minimal template for QUESTION.md when created without an argument.
+const QUESTION_TEMPLATE: &str = r#"# Investigation Question
+
+Describe what you want to investigate...
+"#;
+
+/// Read the investigation question from QUESTION.md.
+///
+/// Returns the full contents of the QUESTION.md file.
+///
+/// # Errors
+///
+/// Returns an error if QUESTION.md does not exist or cannot be read.
+pub fn read_question(dir: &Path) -> Result<String> {
+    let path = dir.join(QUESTION_FILE);
+    fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))
+}
+
+/// Create a minimal QUESTION.md template.
+///
+/// Writes a placeholder template for the user to fill in.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be written.
+pub fn create_question_template(dir: &Path) -> Result<()> {
+    let path = dir.join(QUESTION_FILE);
+    fs::write(&path, QUESTION_TEMPLATE)
+        .with_context(|| format!("failed to write {}", path.display()))
+}
+
+/// Write an investigation question to QUESTION.md.
+///
+/// Creates QUESTION.md with the provided question formatted
+/// with the standard header and optional context section.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be written.
+pub fn write_question(dir: &Path, question: &str) -> Result<()> {
+    let path = dir.join(QUESTION_FILE);
+    let content = format!(
+        r#"# Investigation Question
+
+{}
+
+## Context (Optional)
+
+<Add any additional context here>
+"#,
+        question
+    );
+    fs::write(&path, content).with_context(|| format!("failed to write {}", path.display()))
+}
 
 /// Detect reverse mode signals in output.
 ///
@@ -617,5 +676,125 @@ More investigation needed.
             detect_reverse_signal("[[RALPH:CONTINUE]]"),
             ReverseSignal::Continue
         );
+    }
+
+    // ========== Question handling tests ==========
+
+    use tempfile::TempDir;
+
+    fn create_temp_dir() -> TempDir {
+        tempfile::tempdir().expect("Failed to create temp dir")
+    }
+
+    #[test]
+    fn test_read_question_success() {
+        let dir = create_temp_dir();
+        let content = "# Investigation Question\n\nWhy does auth fail?";
+        std::fs::write(dir.path().join("QUESTION.md"), content).unwrap();
+
+        let result = read_question(dir.path()).unwrap();
+        assert_eq!(result, content);
+    }
+
+    #[test]
+    fn test_read_question_file_not_found() {
+        let dir = create_temp_dir();
+        let result = read_question(dir.path());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("failed to read"));
+    }
+
+    #[test]
+    fn test_create_question_template() {
+        let dir = create_temp_dir();
+        create_question_template(dir.path()).unwrap();
+
+        let content = std::fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+        assert!(content.contains("# Investigation Question"));
+        assert!(content.contains("Describe what you want to investigate"));
+    }
+
+    #[test]
+    fn test_create_question_template_overwrites() {
+        let dir = create_temp_dir();
+        std::fs::write(dir.path().join("QUESTION.md"), "old content").unwrap();
+
+        create_question_template(dir.path()).unwrap();
+
+        let content = std::fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+        assert!(!content.contains("old content"));
+        assert!(content.contains("# Investigation Question"));
+    }
+
+    #[test]
+    fn test_write_question() {
+        let dir = create_temp_dir();
+        let question = "Why does the cache fail after 5 minutes?";
+
+        write_question(dir.path(), question).unwrap();
+
+        let content = std::fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+        assert!(content.contains("# Investigation Question"));
+        assert!(content.contains(question));
+        assert!(content.contains("## Context (Optional)"));
+    }
+
+    #[test]
+    fn test_write_question_multiline() {
+        let dir = create_temp_dir();
+        let question = "Why does the auth fail?\n\n- Happens on OAuth users\n- Only in production";
+
+        write_question(dir.path(), question).unwrap();
+
+        let content = std::fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+        assert!(content.contains("# Investigation Question"));
+        assert!(content.contains("Happens on OAuth users"));
+        assert!(content.contains("Only in production"));
+    }
+
+    #[test]
+    fn test_write_question_overwrites() {
+        let dir = create_temp_dir();
+        std::fs::write(dir.path().join("QUESTION.md"), "old question").unwrap();
+
+        write_question(dir.path(), "new question").unwrap();
+
+        let content = std::fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+        assert!(!content.contains("old question"));
+        assert!(content.contains("new question"));
+    }
+
+    #[test]
+    fn test_write_then_read_question() {
+        let dir = create_temp_dir();
+        let question = "What causes the memory leak?";
+
+        write_question(dir.path(), question).unwrap();
+        let content = read_question(dir.path()).unwrap();
+
+        assert!(content.contains(question));
+    }
+
+    #[test]
+    fn test_question_with_special_characters() {
+        let dir = create_temp_dir();
+        let question = "Why does `fn foo<T>()` fail with error \"E0277\"?";
+
+        write_question(dir.path(), question).unwrap();
+        let content = read_question(dir.path()).unwrap();
+
+        assert!(content.contains(question));
+    }
+
+    #[test]
+    fn test_question_with_unicode() {
+        let dir = create_temp_dir();
+        let question = "为什么缓存在5分钟后失败？";
+
+        write_question(dir.path(), question).unwrap();
+        let content = read_question(dir.path()).unwrap();
+
+        assert!(content.contains(question));
     }
 }
