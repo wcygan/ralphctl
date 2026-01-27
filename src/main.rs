@@ -157,20 +157,11 @@ fn run_cmd(max_iterations: u32, _pause: bool, model: Option<&str>) -> Result<()>
     let prompt = run::read_prompt()?;
 
     // Step 3: Run iteration loop
-    // TODO: Remove allow when magic string detection is implemented
-    #[allow(clippy::never_loop)]
     for iteration in 1..=max_iterations {
-        // Print iteration header
         run::print_iteration_header(iteration);
 
-        // Spawn claude subprocess
         let result = run::spawn_claude(&prompt, model)?;
 
-        // TODO: Check for magic strings (RALPH:DONE, RALPH:BLOCKED)
-        // TODO: Log iteration to ralph.log
-        // TODO: Handle --pause flag
-
-        // For now, exit after first iteration if claude exited with error
         if !result.success {
             error::die(&format!(
                 "claude exited with code {}",
@@ -178,11 +169,28 @@ fn run_cmd(max_iterations: u32, _pause: bool, model: Option<&str>) -> Result<()>
             ));
         }
 
-        // TODO: Remove this break when magic string detection is implemented
-        break;
+        // Check for completion signal in stdout
+        if run::detect_done_signal(&result.stdout) == run::LoopSignal::Done {
+            println!("=== Loop complete ===");
+            return Ok(());
+        }
+
+        // Check for blocked signal in stdout
+        if let Some(reason) = run::detect_blocked_signal(&result.stdout) {
+            eprintln!("blocked: {}", reason);
+            std::process::exit(error::exit::BLOCKED);
+        }
+
+        // TODO: Log iteration to ralph.log
+        // TODO: Handle --pause flag
     }
 
-    Ok(())
+    // Reached max iterations without completion
+    eprintln!(
+        "warning: reached max iterations ({}) without [[RALPH:DONE]]",
+        max_iterations
+    );
+    std::process::exit(error::exit::MAX_ITERATIONS);
 }
 
 fn interview_cmd(model: Option<&str>) -> Result<()> {

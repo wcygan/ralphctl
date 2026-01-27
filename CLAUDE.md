@@ -60,6 +60,7 @@ cargo run -- <command>         # Run with args
 0   - Success
 1   - General error
 2   - Max iterations reached
+3   - Blocked (requires human intervention)
 130 - Interrupted (Ctrl+C)
 ```
 

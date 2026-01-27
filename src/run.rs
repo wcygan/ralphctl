@@ -63,11 +63,9 @@ pub fn read_prompt() -> Result<String> {
 }
 
 /// Magic string indicating the ralph loop completed successfully.
-#[allow(dead_code)] // Used in future loop implementation
 pub const RALPH_DONE_MARKER: &str = "[[RALPH:DONE]]";
 
 /// Result of running a single iteration of the claude subprocess.
-#[allow(dead_code)] // Used in future iteration loop implementation
 #[derive(Debug)]
 pub struct IterationResult {
     /// Whether the subprocess exited successfully (exit code 0)
@@ -76,12 +74,12 @@ pub struct IterationResult {
     pub exit_code: Option<i32>,
     /// Captured stdout output for magic string detection
     pub stdout: String,
-    /// Captured stderr output
+    /// Captured stderr output (used for BLOCKED signal detection)
+    #[allow(dead_code)]
     pub stderr: String,
 }
 
 /// Outcome of checking for magic strings in iteration output.
-#[allow(dead_code)] // Used in future loop implementation
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoopSignal {
     /// Loop completed successfully (RALPH:DONE detected)
@@ -94,7 +92,6 @@ pub enum LoopSignal {
 ///
 /// Scans the provided output string for the magic string `[[RALPH:DONE]]`.
 /// Returns `LoopSignal::Done` if found, `LoopSignal::Continue` otherwise.
-#[allow(dead_code)] // Used in future loop implementation
 pub fn detect_done_signal(output: &str) -> LoopSignal {
     if output.contains(RALPH_DONE_MARKER) {
         LoopSignal::Done
@@ -103,12 +100,27 @@ pub fn detect_done_signal(output: &str) -> LoopSignal {
     }
 }
 
+/// Magic string prefix for blocked signal.
+pub const RALPH_BLOCKED_PREFIX: &str = "[[RALPH:BLOCKED:";
+/// Magic string suffix for blocked signal.
+pub const RALPH_BLOCKED_SUFFIX: &str = "]]";
+
+/// Check if the output contains a RALPH:BLOCKED signal.
+///
+/// Scans for `[[RALPH:BLOCKED:<reason>]]` pattern and extracts the reason.
+/// Returns `Some(reason)` if found, `None` otherwise.
+pub fn detect_blocked_signal(output: &str) -> Option<String> {
+    let start = output.find(RALPH_BLOCKED_PREFIX)?;
+    let after_prefix = &output[start + RALPH_BLOCKED_PREFIX.len()..];
+    let end = after_prefix.find(RALPH_BLOCKED_SUFFIX)?;
+    Some(after_prefix[..end].to_string())
+}
+
 /// Spawn `claude -p` as a subprocess and pipe the prompt via stdin.
 ///
 /// Streams stdout and stderr to the terminal in real-time while also
 /// capturing the output for magic string detection.
 /// Returns the result of the iteration after claude completes.
-#[allow(dead_code)] // Used in future iteration loop implementation
 pub fn spawn_claude(prompt: &str, model: Option<&str>) -> Result<IterationResult> {
     let mut cmd = Command::new("claude");
     cmd.arg("-p")
@@ -407,5 +419,57 @@ mod tests {
     #[test]
     fn test_ralph_done_marker_constant() {
         assert_eq!(RALPH_DONE_MARKER, "[[RALPH:DONE]]");
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_found() {
+        let output = "Cannot proceed.\n[[RALPH:BLOCKED:missing API key]]\n";
+        assert_eq!(
+            detect_blocked_signal(output),
+            Some("missing API key".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_inline() {
+        let output = "Text before [[RALPH:BLOCKED:need user input]] text after";
+        assert_eq!(
+            detect_blocked_signal(output),
+            Some("need user input".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_not_found() {
+        let output = "Still working on tasks...\nMore output here.";
+        assert_eq!(detect_blocked_signal(output), None);
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_empty_output() {
+        assert_eq!(detect_blocked_signal(""), None);
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_empty_reason() {
+        let output = "[[RALPH:BLOCKED:]]";
+        assert_eq!(detect_blocked_signal(output), Some("".to_string()));
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_partial_marker() {
+        // Missing closing brackets
+        let output = "[[RALPH:BLOCKED:reason without closing";
+        assert_eq!(detect_blocked_signal(output), None);
+
+        // Missing prefix
+        let output2 = "RALPH:BLOCKED:reason]]";
+        assert_eq!(detect_blocked_signal(output2), None);
+    }
+
+    #[test]
+    fn test_blocked_marker_constants() {
+        assert_eq!(RALPH_BLOCKED_PREFIX, "[[RALPH:BLOCKED:");
+        assert_eq!(RALPH_BLOCKED_SUFFIX, "]]");
     }
 }

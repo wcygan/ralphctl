@@ -10,10 +10,12 @@ use std::process;
 pub mod exit {
     /// Successful completion
     pub const SUCCESS: i32 = 0;
-    /// General error (missing files, invalid input, blocked)
+    /// General error (missing files, invalid input)
     pub const ERROR: i32 = 1;
     /// Max iterations reached without completion
     pub const MAX_ITERATIONS: i32 = 2;
+    /// Loop blocked, requires human intervention
+    pub const BLOCKED: i32 = 3;
     /// Interrupted by signal (Ctrl+C)
     pub const INTERRUPTED: i32 = 130;
 }
