@@ -360,3 +360,84 @@ Relevant files: src/payment.rs, src/stripe_client.rs
     assert!(final_question.contains("commit abc123"));
     assert!(final_question.contains("src/payment.rs"));
 }
+
+#[test]
+fn reverse_without_args_and_no_question_file_creates_template() {
+    let dir = temp_dir();
+
+    // No QUESTION.md exists, no argument provided
+    // The command should create a template and exit with code 1
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("reverse")
+        .assert()
+        .code(1) // error::exit::ERROR
+        .stderr(predicate::str::contains("Created QUESTION.md"))
+        .stderr(predicate::str::contains(
+            "Edit it with your investigation question",
+        ));
+
+    // Verify QUESTION.md template was created
+    let question_path = dir.path().join("QUESTION.md");
+    assert!(question_path.exists(), "QUESTION.md should be created");
+
+    let content = fs::read_to_string(&question_path).unwrap();
+    assert!(
+        content.contains("# Investigation Question"),
+        "Template should have header"
+    );
+    assert!(
+        content.contains("Describe what you want to investigate"),
+        "Template should have placeholder text"
+    );
+}
+
+#[test]
+fn reverse_without_args_no_question_does_not_create_other_files() {
+    let dir = temp_dir();
+
+    // Run reverse without args and no QUESTION.md
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("reverse")
+        .assert()
+        .code(1);
+
+    // Only QUESTION.md should be created, not REVERSE_PROMPT.md or ralph.log
+    assert!(
+        dir.path().join("QUESTION.md").exists(),
+        "QUESTION.md should exist"
+    );
+    assert!(
+        !dir.path().join("REVERSE_PROMPT.md").exists(),
+        "REVERSE_PROMPT.md should NOT be created"
+    );
+    assert!(
+        !dir.path().join("ralph.log").exists(),
+        "ralph.log should NOT be created"
+    );
+    assert!(
+        !dir.path().join("INVESTIGATION.md").exists(),
+        "INVESTIGATION.md should NOT be created"
+    );
+}
+
+#[test]
+fn reverse_without_args_exits_before_checking_claude() {
+    let dir = temp_dir();
+
+    // Set PATH to empty so claude won't be found
+    // If it checked for claude before creating template, it would error differently
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", "") // Remove PATH so claude can't be found
+        .arg("reverse")
+        .assert()
+        .code(1) // Should exit 1 from template creation, not from missing claude
+        .stderr(predicate::str::contains("Created QUESTION.md"));
+
+    // Template should still be created
+    assert!(dir.path().join("QUESTION.md").exists());
+}
