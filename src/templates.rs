@@ -13,8 +13,11 @@ use std::path::PathBuf;
 /// Base URL for raw template content on GitHub.
 const TEMPLATE_BASE_URL: &str = "https://raw.githubusercontent.com/wcygan/ralphctl/main/templates";
 
-/// Template file names that can be fetched.
+/// Template file names for forward mode (init command).
 pub const TEMPLATE_FILES: &[&str] = &["SPEC.md", "IMPLEMENTATION_PLAN.md", "PROMPT.md"];
+
+/// Template file name for reverse mode.
+pub const REVERSE_PROMPT_TEMPLATE: &str = "REVERSE_PROMPT.md";
 
 /// Application name for cache directory.
 const APP_NAME: &str = "ralphctl";
@@ -168,14 +171,17 @@ pub async fn get_template(filename: &str) -> Result<String> {
     }
 }
 
-/// Fetch all templates with network-first strategy and cache fallback.
+/// Fetch all forward mode templates with network-first strategy and cache fallback.
 ///
 /// For each template, tries to fetch from GitHub first, falling back to cache
 /// on network failure. Successfully fetched templates are saved to cache.
 ///
+/// Note: This does NOT include REVERSE_PROMPT.md, which is fetched separately
+/// via `get_reverse_template()` for the reverse command.
+///
 /// # Returns
 ///
-/// A vector of (filename, content) tuples for all templates.
+/// A vector of (filename, content) tuples for all forward mode templates.
 ///
 /// # Errors
 ///
@@ -189,6 +195,23 @@ pub async fn get_all_templates() -> Result<Vec<(&'static str, String)>> {
     }
 
     Ok(templates)
+}
+
+/// Fetch the reverse mode prompt template with network-first strategy and cache fallback.
+///
+/// Tries to fetch REVERSE_PROMPT.md from GitHub first. On success, the template
+/// is saved to the local cache for offline use. On network failure, falls back
+/// to the cached version if available.
+///
+/// # Returns
+///
+/// The REVERSE_PROMPT.md template content as a string.
+///
+/// # Errors
+///
+/// Returns an error only if both the network fetch fails AND no cached version exists.
+pub async fn get_reverse_template() -> Result<String> {
+    get_template(REVERSE_PROMPT_TEMPLATE).await
 }
 
 #[cfg(test)]
@@ -205,11 +228,19 @@ mod tests {
 
     #[test]
     fn test_template_files_list() {
-        // Verify expected templates are listed
+        // Verify expected forward mode templates are listed
         assert!(TEMPLATE_FILES.contains(&"SPEC.md"));
         assert!(TEMPLATE_FILES.contains(&"IMPLEMENTATION_PLAN.md"));
         assert!(TEMPLATE_FILES.contains(&"PROMPT.md"));
         assert_eq!(TEMPLATE_FILES.len(), 3);
+
+        // REVERSE_PROMPT.md should NOT be in TEMPLATE_FILES (fetched separately)
+        assert!(!TEMPLATE_FILES.contains(&REVERSE_PROMPT_TEMPLATE));
+    }
+
+    #[test]
+    fn test_reverse_prompt_template_constant() {
+        assert_eq!(REVERSE_PROMPT_TEMPLATE, "REVERSE_PROMPT.md");
     }
 
     #[test]
@@ -218,6 +249,15 @@ mod tests {
         assert_eq!(
             url,
             "https://raw.githubusercontent.com/wcygan/ralphctl/main/templates/SPEC.md"
+        );
+    }
+
+    #[test]
+    fn test_reverse_template_url_construction() {
+        let url = format!("{}/{}", TEMPLATE_BASE_URL, REVERSE_PROMPT_TEMPLATE);
+        assert_eq!(
+            url,
+            "https://raw.githubusercontent.com/wcygan/ralphctl/main/templates/REVERSE_PROMPT.md"
         );
     }
 

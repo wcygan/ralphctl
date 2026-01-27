@@ -104,11 +104,11 @@
 
 ## Phase 12: Reverse Mode Template
 
-- [ ] Create `templates/REVERSE_PROMPT.md` with investigation loop instructions
-- [ ] Add REVERSE_PROMPT.md to `templates.rs` fetching logic
-- [ ] Update `get_all_templates()` to NOT include REVERSE_PROMPT.md (it's fetched separately)
-- [ ] Add `get_reverse_template()` function for on-demand fetching
-- [ ] Write integration test for reverse template fetching and caching
+- [x] Create `templates/REVERSE_PROMPT.md` with investigation loop instructions
+- [x] Add REVERSE_PROMPT.md to `templates.rs` fetching logic
+- [x] Update `get_all_templates()` to NOT include REVERSE_PROMPT.md (it's fetched separately)
+- [x] Add `get_reverse_template()` function for on-demand fetching
+- [x] Write integration test for reverse template fetching and caching
 
 ## Phase 13: Reverse Mode CLI
 
