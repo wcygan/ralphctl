@@ -2,7 +2,7 @@
 
 **Generated from:** SPEC.md
 **Status:** In Progress
-**Last Updated:** 2026-01-26T22:15:00
+**Last Updated:** 2026-01-27
 
 ---
 
@@ -55,8 +55,8 @@
 ## Phase 6: Run Command Enhancements
 
 - [x] Implement ralph.log file writing in append mode with structured sections
-- [ ] Implement Ctrl+C signal handling that forwards to child process
-- [ ] Implement interrupt summary printing (`Interrupted after N iterations. X/Y tasks complete.`)
+- [x] Implement Ctrl+C signal handling that forwards to child process
+- [x] Implement interrupt summary printing (`Interrupted after N iterations. X/Y tasks complete.`)
 - [x] Implement `--pause` flag with `Continue? [Y/n]` prompt
 - [ ] Implement fallback user prompt when no magic string detected after iteration
 - [x] Write tests for logging format

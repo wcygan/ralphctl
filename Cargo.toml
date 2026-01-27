@@ -18,6 +18,8 @@ regex = "1.10"
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
 tokio = { version = "1.43", features = ["rt-multi-thread", "macros", "process", "io-util", "fs", "signal"] }
 chrono = "0.4"
+ctrlc = "3.5.1"
+nix = { version = "0.31.1", features = ["signal"] }
 
 [dev-dependencies]
 assert_cmd = "2.1.2"

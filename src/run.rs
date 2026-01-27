@@ -2,12 +2,14 @@
 //!
 //! Provides the core ralph loop execution logic.
 
-use crate::{error, files};
+use crate::{error, files, parser};
 use anyhow::Result;
 use std::fs;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 
 /// Required files that must exist before running.
@@ -109,6 +111,26 @@ pub fn prompt_continue() -> Result<PauseAction> {
     }
 }
 
+/// Print interrupt summary showing iterations completed and task progress.
+///
+/// Format: `Interrupted after N iterations. X/Y tasks complete.`
+pub fn print_interrupt_summary(iterations_completed: u32) {
+    let task_summary = match fs::read_to_string(files::IMPLEMENTATION_PLAN_FILE) {
+        Ok(content) => {
+            let count = parser::count_checkboxes(&content);
+            format!("{}/{} tasks complete", count.completed, count.total)
+        }
+        Err(_) => "task status unknown".to_string(),
+    };
+
+    eprintln!(
+        "Interrupted after {} iteration{}. {}.",
+        iterations_completed,
+        if iterations_completed == 1 { "" } else { "s" },
+        task_summary
+    );
+}
+
 /// Magic string indicating the ralph loop completed successfully.
 pub const RALPH_DONE_MARKER: &str = "[[RALPH:DONE]]";
 
@@ -124,6 +146,8 @@ pub struct IterationResult {
     /// Captured stderr output (used for BLOCKED signal detection)
     #[allow(dead_code)]
     pub stderr: String,
+    /// Whether the iteration was interrupted by Ctrl+C
+    pub was_interrupted: bool,
 }
 
 /// Outcome of checking for magic strings in iteration output.
@@ -182,7 +206,15 @@ pub fn detect_blocked_signal(output: &str) -> Option<String> {
 /// Streams stdout and stderr to the terminal in real-time while also
 /// capturing the output for magic string detection.
 /// Returns the result of the iteration after claude completes.
-pub fn spawn_claude(prompt: &str, model: Option<&str>) -> Result<IterationResult> {
+///
+/// If `interrupt_flag` is provided and set to true during execution,
+/// the child process will be killed and the function returns with
+/// `was_interrupted` set to true in the result.
+pub fn spawn_claude(
+    prompt: &str,
+    model: Option<&str>,
+    interrupt_flag: Option<Arc<AtomicBool>>,
+) -> Result<IterationResult> {
     let mut cmd = Command::new("claude");
     cmd.arg("-p")
         .arg("--dangerously-skip-permissions")
@@ -210,24 +242,72 @@ pub fn spawn_claude(prompt: &str, model: Option<&str>) -> Result<IterationResult
     let stdout_pipe = child.stdout.take();
     let stderr_pipe = child.stderr.take();
 
+    // Clone interrupt flag for the polling thread
+    let interrupt_flag_clone = interrupt_flag.clone();
+    let child_id = child.id();
+
+    // Flag to signal the kill thread to stop when child exits normally
+    let child_done = Arc::new(AtomicBool::new(false));
+    let child_done_clone = child_done.clone();
+
     // Spawn thread to stream and capture stdout
     let stdout_handle = thread::spawn(move || stream_and_capture(stdout_pipe, io::stdout()));
 
     // Spawn thread to stream and capture stderr
     let stderr_handle = thread::spawn(move || stream_and_capture(stderr_pipe, io::stderr()));
 
+    // Spawn thread to poll for interrupt and kill child if needed
+    let kill_handle = interrupt_flag_clone.map(|flag| {
+        thread::spawn(move || {
+            // Poll every 100ms for interrupt signal or child completion
+            loop {
+                if child_done_clone.load(Ordering::SeqCst) {
+                    // Child completed normally, no need to kill
+                    break;
+                }
+                if flag.load(Ordering::SeqCst) {
+                    // Interrupt received, kill the child process
+                    #[cfg(unix)]
+                    {
+                        use nix::sys::signal::{kill, Signal};
+                        use nix::unistd::Pid;
+                        // Send SIGTERM to the child process
+                        let _ = kill(Pid::from_raw(child_id as i32), Signal::SIGTERM);
+                    }
+                    break;
+                }
+                thread::sleep(std::time::Duration::from_millis(100));
+            }
+        })
+    });
+
     // Wait for claude to complete
     let status = child.wait()?;
+
+    // Signal the kill thread that the child has exited
+    child_done.store(true, Ordering::SeqCst);
+
+    // Check if we were interrupted
+    let was_interrupted = interrupt_flag
+        .as_ref()
+        .is_some_and(|f| f.load(Ordering::SeqCst));
+
+    // Wait for kill thread to finish if it exists
+    if let Some(handle) = kill_handle {
+        // Don't wait forever - the thread should exit quickly once child is done
+        let _ = handle.join();
+    }
 
     // Collect captured output from threads
     let stdout = stdout_handle.join().unwrap_or_default();
     let stderr = stderr_handle.join().unwrap_or_default();
 
     Ok(IterationResult {
-        success: status.success(),
+        success: status.success() && !was_interrupted,
         exit_code: status.code(),
         stdout,
         stderr,
+        was_interrupted,
     })
 }
 
@@ -341,6 +421,7 @@ mod tests {
             exit_code: Some(0),
             stdout: "output".to_string(),
             stderr: String::new(),
+            was_interrupted: false,
         };
         // Verify Debug trait is implemented
         let debug_str = format!("{:?}", result);
@@ -617,5 +698,18 @@ mod tests {
         let action = PauseAction::Stop;
         let debug_str = format!("{:?}", action);
         assert_eq!(debug_str, "Stop");
+    }
+
+    #[test]
+    fn test_iteration_result_was_interrupted_field() {
+        let result = IterationResult {
+            success: false,
+            exit_code: Some(130),
+            stdout: String::new(),
+            stderr: String::new(),
+            was_interrupted: true,
+        };
+        assert!(result.was_interrupted);
+        assert!(!result.success);
     }
 }

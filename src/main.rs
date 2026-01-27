@@ -284,20 +284,42 @@ fn update_gitignore(dir: &Path) -> Result<()> {
 }
 
 fn run_cmd(max_iterations: u32, pause: bool, model: Option<&str>) -> Result<()> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
     // Step 1: Validate required files exist
     run::validate_required_files()?;
 
     // Step 2: Read PROMPT.md
     let prompt = run::read_prompt()?;
 
-    // Step 3: Run iteration loop
+    // Step 3: Set up Ctrl+C handler
+    let interrupt_flag = Arc::new(AtomicBool::new(false));
+    let interrupt_flag_clone = interrupt_flag.clone();
+
+    ctrlc::set_handler(move || {
+        interrupt_flag_clone.store(true, Ordering::SeqCst);
+    })
+    .expect("error setting Ctrl+C handler");
+
+    // Step 4: Run iteration loop
+    let mut iterations_completed = 0u32;
+
     for iteration in 1..=max_iterations {
         run::print_iteration_header(iteration);
 
-        let result = run::spawn_claude(&prompt, model)?;
+        let result = run::spawn_claude(&prompt, model, Some(interrupt_flag.clone()))?;
 
         // Log iteration output to ralph.log
         run::log_iteration(iteration, &result.stdout)?;
+
+        // Check if we were interrupted
+        if result.was_interrupted {
+            run::print_interrupt_summary(iterations_completed);
+            std::process::exit(error::exit::INTERRUPTED);
+        }
+
+        iterations_completed = iteration;
 
         if !result.success {
             error::die(&format!(
