@@ -115,9 +115,9 @@
 - [x] Add `Command::Reverse` variant to CLI with question argument, --max-iterations (default 100), --pause, --model flags
 - [x] Implement `reverse_cmd()` function in `main.rs`
 - [x] Implement question setup logic (arg provided vs QUESTION.md exists vs create template)
-- [ ] Implement reverse iteration loop using `spawn_claude()` with REVERSE_PROMPT.md
-- [ ] Implement signal handling: CONTINUE (loop), FOUND (exit 0), INCONCLUSIVE (exit 4), BLOCKED (exit 3)
-- [ ] Add comprehensive --help text with examples and exit code documentation
+- [x] Implement reverse iteration loop using `spawn_claude()` with REVERSE_PROMPT.md
+- [x] Implement signal handling: CONTINUE (loop), FOUND (exit 0), INCONCLUSIVE (exit 4), BLOCKED (exit 3)
+- [x] Add comprehensive --help text with examples and exit code documentation
 
 ## Phase 14: Reverse Mode Integration
 
