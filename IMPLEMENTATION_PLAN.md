@@ -85,7 +85,7 @@
 - [x] Add `exit::INCONCLUSIVE = 4` constant to `error.rs`
 - [x] Add REVERSE_FILES array and `find_existing_reverse_files()` function to `files.rs`
 - [x] Add `find_archivable_reverse_files()` function to `files.rs`
-- [ ] Write unit tests for reverse file discovery functions
+- [x] Write unit tests for reverse file discovery functions
 
 ## Phase 10: Reverse Mode Signal Detection
 
