@@ -223,3 +223,109 @@ fn clean_prompt_shows_file_count() {
         .code(1)
         .stderr(predicate::str::contains("Delete 2 ralph files?"));
 }
+
+// ========== Reverse mode file tests ==========
+
+#[test]
+fn clean_force_deletes_reverse_files() {
+    let dir = temp_dir();
+
+    // Create reverse mode files
+    fs::write(dir.path().join("QUESTION.md"), "# Question").unwrap();
+    fs::write(dir.path().join("INVESTIGATION.md"), "# Investigation").unwrap();
+    fs::write(dir.path().join("FINDINGS.md"), "# Findings").unwrap();
+    fs::write(dir.path().join("REVERSE_PROMPT.md"), "# Prompt").unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("clean")
+        .arg("--force")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted 4 files."));
+
+    // Verify all files are deleted
+    assert!(!dir.path().join("QUESTION.md").exists());
+    assert!(!dir.path().join("INVESTIGATION.md").exists());
+    assert!(!dir.path().join("FINDINGS.md").exists());
+    assert!(!dir.path().join("REVERSE_PROMPT.md").exists());
+}
+
+#[test]
+fn clean_force_deletes_all_ralph_files_both_modes() {
+    let dir = temp_dir();
+
+    // Create forward mode files
+    fs::write(dir.path().join("SPEC.md"), "# Spec").unwrap();
+    fs::write(dir.path().join("IMPLEMENTATION_PLAN.md"), "# Plan").unwrap();
+    fs::write(dir.path().join("PROMPT.md"), "# Prompt").unwrap();
+    fs::write(dir.path().join("ralph.log"), "log content").unwrap();
+    // Create reverse mode files
+    fs::write(dir.path().join("QUESTION.md"), "# Question").unwrap();
+    fs::write(dir.path().join("INVESTIGATION.md"), "# Investigation").unwrap();
+    fs::write(dir.path().join("FINDINGS.md"), "# Findings").unwrap();
+    fs::write(dir.path().join("REVERSE_PROMPT.md"), "# Reverse Prompt").unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("clean")
+        .arg("--force")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted 8 files."));
+
+    // Verify all files are deleted
+    // Forward mode
+    assert!(!dir.path().join("SPEC.md").exists());
+    assert!(!dir.path().join("IMPLEMENTATION_PLAN.md").exists());
+    assert!(!dir.path().join("PROMPT.md").exists());
+    assert!(!dir.path().join("ralph.log").exists());
+    // Reverse mode
+    assert!(!dir.path().join("QUESTION.md").exists());
+    assert!(!dir.path().join("INVESTIGATION.md").exists());
+    assert!(!dir.path().join("FINDINGS.md").exists());
+    assert!(!dir.path().join("REVERSE_PROMPT.md").exists());
+}
+
+#[test]
+fn clean_reverse_files_preserves_forward_files() {
+    let dir = temp_dir();
+
+    // Create only reverse mode files (no forward files)
+    fs::write(dir.path().join("QUESTION.md"), "# Question").unwrap();
+    fs::write(dir.path().join("INVESTIGATION.md"), "# Investigation").unwrap();
+
+    // Create non-ralph file
+    fs::write(dir.path().join("README.md"), "# Readme").unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("clean")
+        .arg("--force")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted 2 files."));
+
+    // Verify reverse files deleted, non-ralph preserved
+    assert!(!dir.path().join("QUESTION.md").exists());
+    assert!(!dir.path().join("INVESTIGATION.md").exists());
+    assert!(dir.path().join("README.md").exists());
+}
+
+#[test]
+fn clean_prompt_includes_reverse_file_count() {
+    let dir = temp_dir();
+
+    // Create reverse mode files
+    fs::write(dir.path().join("QUESTION.md"), "# Question").unwrap();
+    fs::write(dir.path().join("INVESTIGATION.md"), "# Investigation").unwrap();
+    fs::write(dir.path().join("FINDINGS.md"), "# Findings").unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("clean")
+        .write_stdin("n\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("Delete 3 ralph files?"));
+}
