@@ -192,7 +192,12 @@ fn interview_cmd(model: Option<&str>) -> Result<()> {
         error::die("claude not found in PATH");
     }
 
-    const SYSTEM_PROMPT: &str = r#"# Ralph Loop System Context
+    let cwd = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+
+    let system_prompt = format!(
+        r#"# Ralph Loop System Context
 
 You are setting up a Ralph Loop—an autonomous development workflow where an AI agent iteratively builds software by reading local state files and executing tasks until completion.
 
@@ -307,7 +312,17 @@ When you have enough detail:
 4. Tell the user to run `ralphctl run` to start the autonomous development loop
 5. Remind them they can check progress anytime with `ralphctl status`
 
-**IMPORTANT**: Use relative paths (`./SPEC.md`, `./IMPLEMENTATION_PLAN.md`) to write files in the current working directory. Do NOT use `~` or absolute paths."#;
+## Working Directory
+
+You are working in: `{cwd}`
+
+When writing files, use this exact path as the base. For example:
+- SPEC.md → `{cwd}/SPEC.md`
+- IMPLEMENTATION_PLAN.md → `{cwd}/IMPLEMENTATION_PLAN.md`
+
+NEVER use paths from other context (like ~/.claude/CLAUDE.md). The path above is the ONLY correct location for project files."#,
+        cwd = cwd
+    );
 
     const INITIAL_PROMPT: &str = r#"You are an assistant helping me set up a Ralph Loop. Interview me to create SPEC.md and IMPLEMENTATION_PLAN.md for my project. Tell me how to get started—I might paste a detailed project idea, describe something simple, or just have a rough concept."#;
 
@@ -316,7 +331,7 @@ When you have enough detail:
     cmd.arg("--allowedTools")
         .arg("AskUserQuestion,Read,Glob,Grep,Write,Edit")
         .arg("--system-prompt")
-        .arg(SYSTEM_PROMPT);
+        .arg(&system_prompt);
 
     if let Some(m) = model {
         cmd.arg("--model").arg(m);
