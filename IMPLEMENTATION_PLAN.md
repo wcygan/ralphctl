@@ -33,8 +33,8 @@
 
 - [x] Implement `claude` CLI detection using `which` command
 - [x] Implement template fetching from GitHub raw content URLs using reqwest
-- [ ] Implement XDG-compliant cache directory resolution using dirs crate
-- [ ] Implement cache-first-then-fetch logic with network fallback to cache
+- [x] Implement XDG-compliant cache directory resolution using dirs crate
+- [x] Implement cache-first-then-fetch logic with network fallback to cache
 - [ ] Implement `init` subcommand that writes SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md
 - [ ] Add `--force` flag to overwrite existing files
 - [ ] Add file existence check that errors without --force
