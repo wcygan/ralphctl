@@ -288,7 +288,17 @@ Topics to cover:
 
 Don't accept vague answers. "It should be fast" → "What's the latency budget? 100ms? 1s?" Push for specifics.
 
-When you have enough detail, write both files to the current directory."#;
+## After Writing the Files
+
+When you have enough detail:
+
+1. Write `./SPEC.md` with the complete project specification
+2. Write `./IMPLEMENTATION_PLAN.md` with the phased task list
+3. Summarize what you created (brief overview of the spec and number of tasks)
+4. Tell the user to run `ralphctl run` to start the autonomous development loop
+5. Remind them they can check progress anytime with `ralphctl status`
+
+**IMPORTANT**: Use relative paths (`./SPEC.md`, `./IMPLEMENTATION_PLAN.md`) to write files in the current working directory. Do NOT use `~` or absolute paths."#;
 
     const INITIAL_PROMPT: &str = r#"You are an assistant helping me set up a Ralph Loop. Interview me to create SPEC.md and IMPLEMENTATION_PLAN.md for my project. Tell me how to get started—I might paste a detailed project idea, describe something simple, or just have a rough concept."#;
 
