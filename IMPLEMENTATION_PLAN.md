@@ -47,19 +47,19 @@
 - [x] Implement real-time stdout/stderr streaming (pass-through)
 - [x] Implement iteration header printing (`=== Iteration N starting ===`)
 - [x] Implement magic string detection for `[[RALPH:DONE]]`
-- [ ] Implement magic string detection for `[[RALPH:BLOCKED:<reason>]]` with reason extraction
-- [ ] Implement `--max-iterations` flag with default of 50
-- [ ] Implement pre-run validation for required files (PROMPT.md, SPEC.md, IMPLEMENTATION_PLAN.md)
+- [x] Implement magic string detection for `[[RALPH:BLOCKED:<reason>]]` with reason extraction
+- [x] Implement `--max-iterations` flag with default of 50
+- [x] Implement pre-run validation for required files (PROMPT.md, SPEC.md, IMPLEMENTATION_PLAN.md)
 - [ ] Write integration tests for run command with mock claude output
 
 ## Phase 6: Run Command Enhancements
 
-- [ ] Implement ralph.log file writing in append mode with structured sections
+- [x] Implement ralph.log file writing in append mode with structured sections
 - [ ] Implement Ctrl+C signal handling that forwards to child process
 - [ ] Implement interrupt summary printing (`Interrupted after N iterations. X/Y tasks complete.`)
-- [ ] Implement `--pause` flag with `Ready for iteration N. Press Enter...` prompt
+- [x] Implement `--pause` flag with `Continue? [Y/n]` prompt
 - [ ] Implement fallback user prompt when no magic string detected after iteration
-- [ ] Write tests for logging format and signal handling
+- [x] Write tests for logging format
 
 ## Phase 7: Distribution
 
