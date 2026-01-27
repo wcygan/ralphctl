@@ -29,46 +29,48 @@ You are operating in an autonomous development loop.
 1. Mark the completed task as `- [x]` in `IMPLEMENTATION_PLAN.md`
 2. If you discovered new tasks needed, add them in the appropriate phase
 
-### Step 4: Exit
+### Step 4: Signal Completion
 
-After completing ONE task, simply exit. The orchestrator will restart you for the next task.
+After completing your work, you MUST output exactly one of these signals on its own line:
 
-Do NOT output any special signal after completing a single task - just finish your work and stop.
+**Task completed, more tasks remain:**
+```
+[[RALPH:CONTINUE]]
+```
 
-**Only output `[[RALPH:DONE]]` when ALL tasks in IMPLEMENTATION_PLAN.md are marked `- [x]`.**
+**All tasks complete (every checkbox is `[x]`):**
+```
+[[RALPH:DONE]]
+```
 
-If you encounter a blocker you cannot resolve, output:
-
+**Cannot proceed due to blocker:**
 ```
 [[RALPH:BLOCKED:<reason>]]
 ```
-
-Replace `<reason>` with a brief explanation of what's blocking progress.
 
 ---
 
 ## Rules
 
-1. **One task per iteration** - Complete one checkbox, then stop
+1. **One task per iteration** - Complete one checkbox, then signal
 2. **Always test** - No task is done without running tests
 3. **Always commit** - Each task = one atomic commit
-4. **Update the plan** - Mark completion before stopping
-5. **Don't gold-plate** - Do exactly what the task says, no more
-6. **Follow SPEC.md** - Use the technology decisions and patterns specified
+4. **Update the plan** - Mark completion before signaling
+5. **Always signal** - End every iteration with the appropriate signal
+6. **Don't gold-plate** - Do exactly what the task says, no more
+7. **Follow SPEC.md** - Use the technology decisions and patterns specified
 
-## Exit Signals
+## Exit Signals (REQUIRED)
 
-**Normal iteration**: Complete one task, update the plan, then stop. No special output needed.
+Every iteration MUST end with exactly one of these signals on its own line:
 
-**All tasks complete**: When every task in IMPLEMENTATION_PLAN.md shows `- [x]`, output exactly:
-```
-[[RALPH:DONE]]
-```
+| Signal | Meaning |
+|--------|---------|
+| `[[RALPH:CONTINUE]]` | Task completed, more tasks remain — orchestrator will start next iteration |
+| `[[RALPH:DONE]]` | All tasks complete — orchestrator will exit successfully |
+| `[[RALPH:BLOCKED:<reason>]]` | Cannot proceed — orchestrator will exit with error |
 
-**Blocked**: If you cannot proceed, output exactly:
-```
-[[RALPH:BLOCKED:<reason>]]
-```
+The orchestrator reads these signals to decide what to do next. Without a signal, the loop will pause and ask for manual intervention.
 
 ---
 

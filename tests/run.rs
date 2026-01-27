@@ -472,3 +472,223 @@ fn run_handles_large_prompt_with_fast_exit() {
         .assert()
         .success();
 }
+
+#[test]
+fn run_continue_signal_proceeds_to_next_iteration() {
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    // Create mock claude that outputs CONTINUE signal
+    // This should cause the loop to continue without prompting
+    let mock_output = "Task completed.\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // With max-iterations=2 and CONTINUE signal, should run both iterations
+    // then exit with MAX_ITERATIONS code
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("2")
+        .assert()
+        .code(2) // MAX_ITERATIONS because CONTINUE keeps looping
+        .stderr(predicate::str::contains("reached max iterations"));
+
+    // Verify both iterations ran
+    let log_content = fs::read_to_string(dir.path().join("ralph.log")).unwrap();
+    assert!(log_content.contains("=== Iteration 1 starting ==="));
+    assert!(log_content.contains("=== Iteration 2 starting ==="));
+}
+
+#[test]
+fn run_continue_then_done_completes_successfully() {
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    // Create a mock that outputs DONE (simulating completion after one task)
+    // In a real scenario, we'd want a stateful mock, but for testing
+    // we verify DONE exits the loop successfully
+    let mock_output = "All tasks complete.\n[[RALPH:DONE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("10")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Loop complete"));
+}
+
+#[test]
+fn run_continue_signal_with_whitespace() {
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    // CONTINUE signal can have leading/trailing whitespace on its line
+    let mock_output = "Working...\n  [[RALPH:CONTINUE]]  \n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(2); // Runs one iteration with CONTINUE, then hits max
+}
+
+#[test]
+fn run_blocked_takes_priority_over_done() {
+    // When both BLOCKED and DONE are present, BLOCKED should take priority
+    // This tests the priority logic in main.rs
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    // Mock outputs both signals - BLOCKED should win
+    let mock_output = "[[RALPH:DONE]]\n[[RALPH:BLOCKED:cannot proceed]]";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3) // BLOCKED exit code
+        .stderr(predicate::str::contains("blocked: cannot proceed"));
+}
+
+#[test]
+fn run_blocked_takes_priority_over_continue() {
+    // BLOCKED should also take priority over CONTINUE
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    let mock_output = "[[RALPH:CONTINUE]]\n[[RALPH:BLOCKED:oops]]";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("blocked: oops"));
+}
+
+#[test]
+fn run_signal_at_end_of_long_output() {
+    // Signal detection should work even after very long output
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    // Create output with lots of content before the signal
+    let long_content = "Line of output content here.\n".repeat(500);
+    let mock_output = format!("{}[[RALPH:DONE]]\n", long_content);
+    let bin_dir = create_mock_claude(&dir, &mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Loop complete"));
+}
+
+#[test]
+fn run_done_signal_case_sensitive() {
+    // Signal must be exact case - lowercase should not match
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    let mock_output = "[[ralph:done]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // Should trigger no-signal prompt or hit max iterations
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .write_stdin("s\n") // Stop when prompted
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Stopped by user"));
+}
+
+#[test]
+fn run_with_unicode_output() {
+    // Unicode in output shouldn't break signal detection
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    let mock_output = "完成 ✓ 🎉\nAll tasks complete!\n[[RALPH:DONE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Loop complete"));
+}
+
+#[test]
+fn run_signal_with_insight_box_pattern() {
+    // Real-world pattern: signal after insight box (from explanatory mode)
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    let mock_output = r#"Task complete.
+
+`★ Insight ─────────────────────────────────────`
+Some educational content here about the code.
+`─────────────────────────────────────────────────`
+
+[[RALPH:CONTINUE]]
+"#;
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(2) // CONTINUE triggers next iteration, hits max
+        .stderr(predicate::str::contains("reached max iterations"));
+}

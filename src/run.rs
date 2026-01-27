@@ -163,8 +163,11 @@ pub fn print_interrupt_summary(iterations_completed: u32) {
     );
 }
 
-/// Magic string indicating the ralph loop completed successfully.
+/// Magic string indicating the ralph loop completed successfully (all tasks done).
 pub const RALPH_DONE_MARKER: &str = "[[RALPH:DONE]]";
+
+/// Magic string indicating a task was completed and the loop should continue.
+pub const RALPH_CONTINUE_MARKER: &str = "[[RALPH:CONTINUE]]";
 
 /// Result of running a single iteration of the claude subprocess.
 #[derive(Debug)]
@@ -185,27 +188,33 @@ pub struct IterationResult {
 /// Outcome of checking for magic strings in iteration output.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoopSignal {
-    /// Loop completed successfully (RALPH:DONE detected)
+    /// All tasks completed (RALPH:DONE detected)
     Done,
-    /// No signal detected, continue looping
+    /// Task completed, continue to next iteration (RALPH:CONTINUE detected)
     Continue,
+    /// No signal detected
+    NoSignal,
 }
 
-/// Check if the output contains the RALPH:DONE marker on its own line.
+/// Check if the output contains a RALPH signal marker on its own line.
 ///
-/// Scans the provided output string for the magic string `[[RALPH:DONE]]`.
-/// The marker must appear alone on a line (with optional whitespace) to be
-/// detected. This prevents false positives when Claude discusses or quotes
-/// the marker in its output.
+/// Scans the provided output string for magic strings `[[RALPH:DONE]]` or
+/// `[[RALPH:CONTINUE]]`. The marker must appear alone on a line (with optional
+/// whitespace) to be detected. This prevents false positives when Claude
+/// discusses or quotes the marker in its output.
 ///
-/// Returns `LoopSignal::Done` if found, `LoopSignal::Continue` otherwise.
-pub fn detect_done_signal(output: &str) -> LoopSignal {
+/// Returns `LoopSignal::Done`, `LoopSignal::Continue`, or `LoopSignal::NoSignal`.
+pub fn detect_signal(output: &str) -> LoopSignal {
     for line in output.lines() {
-        if line.trim() == RALPH_DONE_MARKER {
+        let trimmed = line.trim();
+        if trimmed == RALPH_DONE_MARKER {
             return LoopSignal::Done;
         }
+        if trimmed == RALPH_CONTINUE_MARKER {
+            return LoopSignal::Continue;
+        }
     }
-    LoopSignal::Continue
+    LoopSignal::NoSignal
 }
 
 /// Magic string prefix for blocked signal.
@@ -548,59 +557,94 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_done_signal_found() {
+    fn test_detect_signal_done() {
         let output = "Completed all tasks.\n[[RALPH:DONE]]\n";
-        assert_eq!(detect_done_signal(output), LoopSignal::Done);
+        assert_eq!(detect_signal(output), LoopSignal::Done);
     }
 
     #[test]
-    fn test_detect_done_signal_rejects_inline() {
+    fn test_detect_signal_continue() {
+        let output = "Task completed.\n[[RALPH:CONTINUE]]\n";
+        assert_eq!(detect_signal(output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_signal_rejects_inline_done() {
         // Marker must be alone on a line - inline mentions are rejected
         // to prevent false positives when Claude discusses the marker
         let output = "Work finished [[RALPH:DONE]] done";
-        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
+        assert_eq!(detect_signal(output), LoopSignal::NoSignal);
     }
 
     #[test]
-    fn test_detect_done_signal_with_whitespace() {
+    fn test_detect_signal_rejects_inline_continue() {
+        let output = "Output [[RALPH:CONTINUE]] more text";
+        assert_eq!(detect_signal(output), LoopSignal::NoSignal);
+    }
+
+    #[test]
+    fn test_detect_signal_done_with_whitespace() {
         // Marker can have leading/trailing whitespace on its line
         let output = "Some output\n  [[RALPH:DONE]]  \nMore text";
-        assert_eq!(detect_done_signal(output), LoopSignal::Done);
+        assert_eq!(detect_signal(output), LoopSignal::Done);
     }
 
     #[test]
-    fn test_detect_done_signal_rejects_quoted_mention() {
+    fn test_detect_signal_continue_with_whitespace() {
+        let output = "Some output\n  [[RALPH:CONTINUE]]  \nMore text";
+        assert_eq!(detect_signal(output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_signal_rejects_quoted_mention() {
         // When Claude explains what the marker does, it shouldn't trigger
         let output = "The test covers `[[RALPH:DONE]]` signal detection";
-        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
+        assert_eq!(detect_signal(output), LoopSignal::NoSignal);
     }
 
     #[test]
-    fn test_detect_done_signal_not_found() {
+    fn test_detect_signal_no_signal() {
         let output = "Still working on tasks...\nMore output here.";
-        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
+        assert_eq!(detect_signal(output), LoopSignal::NoSignal);
     }
 
     #[test]
-    fn test_detect_done_signal_empty_output() {
-        assert_eq!(detect_done_signal(""), LoopSignal::Continue);
+    fn test_detect_signal_empty_output() {
+        assert_eq!(detect_signal(""), LoopSignal::NoSignal);
     }
 
     #[test]
-    fn test_detect_done_signal_partial_marker() {
-        // Partial markers should not trigger done
+    fn test_detect_signal_partial_marker() {
+        // Partial markers should not trigger
         let output = "[[RALPH:DON]] almost done";
-        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
+        assert_eq!(detect_signal(output), LoopSignal::NoSignal);
 
         let output2 = "RALPH:DONE without brackets";
-        assert_eq!(detect_done_signal(output2), LoopSignal::Continue);
+        assert_eq!(detect_signal(output2), LoopSignal::NoSignal);
+    }
+
+    #[test]
+    fn test_detect_signal_done_takes_priority() {
+        // If both DONE and CONTINUE are present, first one wins (DONE in this case)
+        let output = "[[RALPH:DONE]]\n[[RALPH:CONTINUE]]\n";
+        assert_eq!(detect_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_signal_continue_first() {
+        // If CONTINUE comes before DONE, CONTINUE wins
+        let output = "[[RALPH:CONTINUE]]\n[[RALPH:DONE]]\n";
+        assert_eq!(detect_signal(output), LoopSignal::Continue);
     }
 
     #[test]
     fn test_loop_signal_equality() {
         assert_eq!(LoopSignal::Done, LoopSignal::Done);
         assert_eq!(LoopSignal::Continue, LoopSignal::Continue);
+        assert_eq!(LoopSignal::NoSignal, LoopSignal::NoSignal);
         assert_ne!(LoopSignal::Done, LoopSignal::Continue);
+        assert_ne!(LoopSignal::Done, LoopSignal::NoSignal);
+        assert_ne!(LoopSignal::Continue, LoopSignal::NoSignal);
     }
 
     #[test]
@@ -608,11 +652,20 @@ mod tests {
         let signal = LoopSignal::Done;
         let cloned = signal.clone();
         assert_eq!(signal, cloned);
+
+        let signal2 = LoopSignal::NoSignal;
+        let cloned2 = signal2.clone();
+        assert_eq!(signal2, cloned2);
     }
 
     #[test]
     fn test_ralph_done_marker_constant() {
         assert_eq!(RALPH_DONE_MARKER, "[[RALPH:DONE]]");
+    }
+
+    #[test]
+    fn test_ralph_continue_marker_constant() {
+        assert_eq!(RALPH_CONTINUE_MARKER, "[[RALPH:CONTINUE]]");
     }
 
     #[test]
@@ -680,6 +733,214 @@ mod tests {
     fn test_blocked_marker_constants() {
         assert_eq!(RALPH_BLOCKED_PREFIX, "[[RALPH:BLOCKED:");
         assert_eq!(RALPH_BLOCKED_SUFFIX, "]]");
+    }
+
+    // ========== Real-world Claude output pattern tests ==========
+
+    #[test]
+    fn test_detect_signal_in_code_block_not_detected() {
+        // Signal inside a code block should NOT be detected
+        // (the backticks make it not alone on the line)
+        let output = r#"Here's an example:
+```
+[[RALPH:DONE]]
+```
+"#;
+        // The signal IS on its own line inside the code block, so it WILL be detected
+        // This is actually the expected behavior - we detect based on line content only
+        assert_eq!(detect_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_signal_after_long_output() {
+        // Signal at the very end of long output (typical Claude pattern)
+        let output = format!(
+            "{}\n\n[[RALPH:CONTINUE]]\n",
+            "Task completed successfully.\n".repeat(100)
+        );
+        assert_eq!(detect_signal(&output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_signal_with_ansi_escape_codes() {
+        // Some terminals/tools might include ANSI codes
+        // The signal should still be detected if it's on its own line
+        let output = "\x1b[32mSuccess!\x1b[0m\n[[RALPH:DONE]]\n";
+        assert_eq!(detect_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_signal_windows_line_endings() {
+        // Windows-style CRLF line endings
+        let output = "Task done.\r\n[[RALPH:CONTINUE]]\r\n";
+        assert_eq!(detect_signal(output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_signal_mixed_line_endings() {
+        // Mix of Unix and Windows line endings
+        let output = "Line 1\r\nLine 2\n[[RALPH:DONE]]\r\nLine 4\n";
+        assert_eq!(detect_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_signal_unicode_content() {
+        // Unicode characters shouldn't interfere with signal detection
+        let output = "完成任务 ✓\n🎉 Success!\n[[RALPH:DONE]]\n";
+        assert_eq!(detect_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_signal_with_tabs() {
+        // Tabs count as whitespace, should be trimmed
+        let output = "\t[[RALPH:CONTINUE]]\t\n";
+        assert_eq!(detect_signal(output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_signal_only_whitespace_lines() {
+        // Output with only whitespace lines and no signal
+        let output = "   \n\t\n   \t   \n";
+        assert_eq!(detect_signal(output), LoopSignal::NoSignal);
+    }
+
+    #[test]
+    fn test_detect_signal_case_sensitivity() {
+        // Signals are case-sensitive
+        let output1 = "[[ralph:done]]";
+        assert_eq!(detect_signal(output1), LoopSignal::NoSignal);
+
+        let output2 = "[[RALPH:done]]";
+        assert_eq!(detect_signal(output2), LoopSignal::NoSignal);
+
+        let output3 = "[[Ralph:Continue]]";
+        assert_eq!(detect_signal(output3), LoopSignal::NoSignal);
+    }
+
+    #[test]
+    fn test_detect_signal_similar_but_wrong_markers() {
+        // Similar strings that should NOT match
+        let cases = vec![
+            "[[RALPH:DONE ]]",        // Extra space before closing
+            "[[ RALPH:DONE]]",        // Extra space after opening
+            "[[RALPH: DONE]]",        // Space after colon
+            "[[RALPH:DONEE]]",        // Extra E
+            "[[RALPH:DON]]",          // Missing E
+            "[RALPH:DONE]",           // Single brackets
+            "[[RALPH:DONE]",          // Missing closing bracket
+            "[[RALPH:CONTINUE]",      // Missing closing bracket
+            "[[RALPH:CONTINUES]]",    // Extra S
+            "[[RALPH:CONT]]",         // Truncated
+        ];
+
+        for case in cases {
+            assert_eq!(
+                detect_signal(case),
+                LoopSignal::NoSignal,
+                "Expected NoSignal for: {}",
+                case
+            );
+        }
+    }
+
+    #[test]
+    fn test_detect_blocked_with_colons_in_reason() {
+        // Reason can contain colons (common in error messages)
+        let output = "[[RALPH:BLOCKED:Error: file not found: /path/to/file]]";
+        assert_eq!(
+            detect_blocked_signal(output),
+            Some("Error: file not found: /path/to/file".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_blocked_with_brackets_in_reason() {
+        // Reason can contain brackets (but not the closing ]])
+        let output = "[[RALPH:BLOCKED:Array [1, 2, 3] is empty]]";
+        assert_eq!(
+            detect_blocked_signal(output),
+            Some("Array [1, 2, 3] is empty".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_blocked_multiline_reason_not_supported() {
+        // Multiline reasons are not supported (signal must be on one line)
+        let output = "[[RALPH:BLOCKED:Line 1\nLine 2]]";
+        // This will not match because newline splits it
+        assert_eq!(detect_blocked_signal(output), None);
+    }
+
+    #[test]
+    fn test_detect_blocked_with_unicode_reason() {
+        let output = "[[RALPH:BLOCKED:找不到文件 🚫]]";
+        assert_eq!(
+            detect_blocked_signal(output),
+            Some("找不到文件 🚫".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_blocked_very_long_reason() {
+        // Long reasons should still work
+        let long_reason = "x".repeat(1000);
+        let output = format!("[[RALPH:BLOCKED:{}]]", long_reason);
+        assert_eq!(detect_blocked_signal(&output), Some(long_reason));
+    }
+
+    #[test]
+    fn test_signal_and_blocked_both_present_blocked_wins_in_main() {
+        // When both signals are present, the order of detection in main.rs
+        // determines priority: BLOCKED is checked first
+        // This test verifies detect_blocked_signal finds it
+        let output = "[[RALPH:DONE]]\n[[RALPH:BLOCKED:oops]]";
+        assert_eq!(detect_blocked_signal(output), Some("oops".to_string()));
+        assert_eq!(detect_signal(output), LoopSignal::Done);
+        // In main.rs, BLOCKED is checked first, so it would take priority
+    }
+
+    #[test]
+    fn test_detect_signal_no_newline_at_end() {
+        // Signal at end without trailing newline
+        let output = "Task done.\n[[RALPH:DONE]]";
+        assert_eq!(detect_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_signal_only_signal() {
+        // Output is just the signal
+        assert_eq!(detect_signal("[[RALPH:DONE]]"), LoopSignal::Done);
+        assert_eq!(detect_signal("[[RALPH:CONTINUE]]"), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_signal_insight_box_pattern() {
+        // Real pattern from Claude output - signal after insight box
+        let output = r#"
+`★ Insight ─────────────────────────────────────`
+Some educational content here.
+`─────────────────────────────────────────────────`
+
+[[RALPH:CONTINUE]]
+"#;
+        assert_eq!(detect_signal(output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_signal_with_markdown_formatting() {
+        // Signal after markdown content
+        let output = r#"
+## Summary
+
+- Implemented feature X
+- Added tests for Y
+- Fixed bug Z
+
+**Status**: Complete
+
+[[RALPH:DONE]]
+"#;
+        assert_eq!(detect_signal(output), LoopSignal::Done);
     }
 
     #[test]

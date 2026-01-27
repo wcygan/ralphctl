@@ -48,7 +48,7 @@ cargo run -- <command>         # Run with args
 |--------|---------|---------------|
 | `main.rs` | CLI entry, command dispatch | `run_cmd()`, `interview_cmd()`, `init_cmd()` |
 | `cli.rs` | Claude binary detection | `claude_exists()` |
-| `run.rs` | Loop execution, subprocess spawning | `spawn_claude()`, `detect_done_signal()`, `detect_blocked_signal()`, `log_iteration()`, `prompt_continue()` |
+| `run.rs` | Loop execution, subprocess spawning | `spawn_claude()`, `detect_signal()`, `detect_blocked_signal()`, `log_iteration()`, `prompt_continue()` |
 | `parser.rs` | Checkbox parsing for progress | `count_checkboxes()`, `render_progress_bar()` |
 | `files.rs` | File constants and discovery | `find_existing_ralph_files()`, `find_archivable_files()`, `archive_base_dir()` |
 | `templates.rs` | GitHub fetch with XDG cache | `get_all_templates()`, `fetch_template()` |

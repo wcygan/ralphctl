@@ -4,27 +4,7 @@ A CLI tool for managing Ralph Loop workflows—autonomous development sessions d
 
 ## Installation
 
-### Direct Download (macOS/Linux)
-
-```bash
-# macOS (Apple Silicon)
-curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-darwin-arm64 -o ralphctl
-
-# macOS (Intel)
-curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-darwin-x86_64 -o ralphctl
-
-# Linux (x86_64)
-curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-linux-x86_64 -o ralphctl
-
-# Linux (ARM64)
-curl -fsSL https://github.com/wcygan/ralphctl/releases/latest/download/ralphctl-linux-arm64 -o ralphctl
-
-# Make executable
-chmod +x ralphctl
-./ralphctl --help
-```
-
-### Cargo Install
+### Cargo Install (compile from source)
 
 ```bash
 cargo install --git https://github.com/wcygan/ralphctl

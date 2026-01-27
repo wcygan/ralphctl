@@ -392,28 +392,38 @@ fn run_cmd(max_iterations: u32, pause: bool, model: Option<&str>) -> Result<()> 
             ));
         }
 
-        // Check for completion signal in stdout
-        if run::detect_done_signal(&result.stdout) == run::LoopSignal::Done {
-            println!("=== Loop complete ===");
-            return Ok(());
-        }
-
-        // Check for blocked signal in stdout
+        // Check for blocked signal first (takes priority)
         if let Some(reason) = run::detect_blocked_signal(&result.stdout) {
             eprintln!("blocked: {}", reason);
             std::process::exit(error::exit::BLOCKED);
         }
 
-        // If no magic string detected, prompt user for action (unless --pause will prompt anyway)
-        if !pause && run::prompt_no_signal()? == run::NoSignalAction::Stop {
-            println!("Stopped by user.");
-            return Ok(());
-        }
-
-        // Prompt for confirmation if --pause flag is set
-        if pause && run::prompt_continue()? == run::PauseAction::Stop {
-            println!("Stopped by user.");
-            return Ok(());
+        // Check for completion/continue signals in stdout
+        match run::detect_signal(&result.stdout) {
+            run::LoopSignal::Done => {
+                println!("=== Loop complete ===");
+                return Ok(());
+            }
+            run::LoopSignal::Continue => {
+                // Task completed, continue to next iteration
+                // If --pause is set, prompt user before continuing
+                if pause && run::prompt_continue()? == run::PauseAction::Stop {
+                    println!("Stopped by user.");
+                    return Ok(());
+                }
+            }
+            run::LoopSignal::NoSignal => {
+                // No signal detected, prompt user for action
+                if !pause && run::prompt_no_signal()? == run::NoSignalAction::Stop {
+                    println!("Stopped by user.");
+                    return Ok(());
+                }
+                // If --pause is set, that prompt handles continuation
+                if pause && run::prompt_continue()? == run::PauseAction::Stop {
+                    println!("Stopped by user.");
+                    return Ok(());
+                }
+            }
         }
     }
 
