@@ -12,7 +12,7 @@ Guidance for Claude Code when working with this repository.
 
 ```bash
 cargo build                    # Build debug binary
-cargo test                     # Run all tests (106 tests)
+cargo test                     # Run all tests (127 tests)
 cargo clippy                   # Lint (must pass with no warnings)
 cargo fmt                      # Format code
 cargo run -- <command>         # Run with args
@@ -28,6 +28,7 @@ cargo run -- <command>         # Run with args
 | `status` | Show progress bar from IMPLEMENTATION_PLAN.md | — |
 | `archive` | Save spec/plan to `.ralphctl/archive/<timestamp>/`, reset to blank | `--force` |
 | `clean` | Remove ralph loop files | `--force` |
+| `update` | Install latest version from GitHub | — |
 
 ## Dependencies
 
@@ -39,6 +40,9 @@ cargo run -- <command>         # Run with args
 | `reqwest` | HTTP client for GitHub template fetching |
 | `regex` | Checkbox pattern matching |
 | `dirs` | XDG-compliant cache directory resolution |
+| `chrono` | Timestamp generation for archives |
+| `ctrlc` | Graceful Ctrl+C handling |
+| `nix` | Unix signal handling |
 
 ## Architecture
 
@@ -62,9 +66,12 @@ cargo run -- <command>         # Run with args
 
 **Template caching** (`templates.rs`): Network-first strategy—fetch from GitHub, cache locally, fall back to cache on failure. Cache: `~/.cache/ralphctl/templates/` (Linux) or `~/Library/Caches/ralphctl/templates/` (macOS).
 
-**Magic strings** (`run.rs`): Loop termination signals in Claude output:
-- `[[RALPH:DONE]]` — All tasks complete
-- `[[RALPH:BLOCKED:<reason>]]` — Cannot proceed, requires human intervention
+**Magic strings** (`run.rs`): Loop control signals in Claude output:
+- `[[RALPH:CONTINUE]]` — Task completed, more tasks remain; loop continues automatically
+- `[[RALPH:DONE]]` — All tasks complete; exit successfully
+- `[[RALPH:BLOCKED:<reason>]]` — Cannot proceed; exit with code 3 for human intervention
+
+Detection order: BLOCKED checked first, then CONTINUE/DONE (first match wins).
 
 ### Exit Codes
 

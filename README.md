@@ -4,7 +4,7 @@ A CLI tool for managing Ralph Loop workflows—autonomous development sessions d
 
 ## Installation
 
-### Cargo Install (compile from source)
+Install as a binary compiled from source:
 
 ```bash
 cargo install --git https://github.com/wcygan/ralphctl
@@ -12,7 +12,19 @@ cargo install --git https://github.com/wcygan/ralphctl
 
 ### Prerequisites
 
-Requires the `claude` CLI to be installed and available in PATH.
+Requires the `claude` CLI to be installed and available in PATH. You must be authenticated with Claude.
+
+## Quickstart
+
+These 3 self-contained commands get you started:
+
+```bash
+ralphctl init
+ralphctl interview
+ralphctl run
+```
+
+They will setup the necessary structure, create context in the correct format, and [run the loop](https://github.com/wcygan/ralphctl/blob/368a650db9ab6c9385cec19ac94074744f0669ec/src/main.rs#L372).
 
 ## Workflow
 
@@ -144,6 +156,16 @@ ralphctl clean [--force]
 
 Removes SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md, and ralph.log.
 
+### `ralphctl update`
+
+Install the latest version of ralphctl from GitHub.
+
+```bash
+ralphctl update
+```
+
+Runs `cargo install --git https://github.com/wcygan/ralphctl` to fetch and compile the latest release.
+
 ## How It Works
 
 The Ralph Loop is an autonomous development workflow:
@@ -163,6 +185,7 @@ Each iteration starts with clean context. This eliminates "context rot"—the de
 
 The loop detects these signals in Claude's output:
 
+- `[[RALPH:CONTINUE]]` — Task completed, more tasks remain; loop continues automatically
 - `[[RALPH:DONE]]` — All tasks complete, exit successfully
 - `[[RALPH:BLOCKED:<reason>]]` — Cannot proceed, requires human intervention
 
