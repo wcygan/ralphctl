@@ -1,3 +1,4 @@
+mod cli;
 mod error;
 mod files;
 mod parser;
