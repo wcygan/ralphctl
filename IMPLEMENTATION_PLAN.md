@@ -145,7 +145,7 @@
 
 - [x] Update README.md with Reverse Mode section and examples
 - [x] Add reverse mode examples to CLI --help text
-- [ ] Update CHANGELOG.md with reverse mode feature
+- [x] Update CHANGELOG.md with reverse mode feature
 
 ---
 
