@@ -2,6 +2,7 @@ mod cli;
 mod error;
 mod files;
 mod parser;
+mod run;
 mod templates;
 
 use anyhow::Result;
@@ -68,7 +69,7 @@ async fn main() -> Result<()> {
             max_iterations,
             pause,
         } => {
-            println!("run (max_iterations={}, pause={})", max_iterations, pause);
+            run_cmd(max_iterations, pause)?;
         }
         Command::Status => {
             status_cmd()?;
@@ -127,6 +128,25 @@ fn clean_cmd(force: bool) -> Result<()> {
         "Deleted {} file{}.",
         file_count,
         if file_count == 1 { "" } else { "s" }
+    );
+
+    Ok(())
+}
+
+fn run_cmd(max_iterations: u32, pause: bool) -> Result<()> {
+    // Step 1: Validate required files exist
+    run::validate_required_files()?;
+
+    // Step 2: Read PROMPT.md
+    let prompt = run::read_prompt()?;
+
+    // TODO: Implement iteration loop with subprocess spawning
+    // For now, just confirm we can read the prompt
+    println!(
+        "Ready to run (max_iterations={}, pause={}, prompt_len={})",
+        max_iterations,
+        pause,
+        prompt.len()
     );
 
     Ok(())
