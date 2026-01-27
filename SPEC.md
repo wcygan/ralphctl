@@ -183,92 +183,471 @@ Template URL pattern: `https://raw.githubusercontent.com/wcygan/ralphctl/main/te
 
 ---
 
-# Task Breakdown
+# Reverse Mode Specification
 
-## Phase 1: Project Setup
+## Overview
 
-- [ ] **Task 1.1**: Initialize Cargo project with basic structure
-  - Context: Fresh start
-  - Acceptance: `cargo build` succeeds, produces `ralphctl` binary
+Reverse Mode is a new command for `ralphctl` that enables autonomous investigation workflows. While Forward Mode (`ralphctl run`) builds software by completing tasks, Reverse Mode (`ralphctl reverse`) analyzes codebases to answer questions—diagnosing bugs, understanding legacy code, or mapping dependencies before refactoring. It operates read-only by design and produces structured findings documents.
 
-- [ ] **Task 1.2**: Set up clap with subcommand structure (init, run, status, clean)
-  - Context: Cargo project exists
-  - Acceptance: `ralphctl --help` shows all subcommands, `ralphctl <cmd> --help` works
+## Goals
 
-- [ ] **Task 1.3**: Add CI workflow for building and testing
-  - Context: Basic project structure
-  - Acceptance: GitHub Actions runs `cargo test` and `cargo clippy` on PRs and main branch
+- Enable autonomous investigation of codebases without code modification
+- Provide structured hypothesis-driven investigation with checkboxes for tracking
+- Produce actionable findings documents (INVESTIGATION.md and FINDINGS.md)
+- Support the same iteration model as forward mode (fresh context each iteration)
+- Integrate cleanly with existing ralphctl commands (clean, archive)
 
-## Phase 2: Core Commands
+## Non-Goals
 
-- [ ] **Task 2.1**: Implement `ralphctl status` command
-  - Context: Clap structure in place
-  - Acceptance: Parses IMPLEMENTATION_PLAN.md, outputs Unicode progress bar with stats
+- Hard enforcement of read-only behavior (trust the prompt)
+- GitHub issue integration (user can copy-paste)
+- Separate archive/clean commands for reverse files
 
-- [ ] **Task 2.2**: Implement `ralphctl clean` command
-  - Context: Clap structure in place
-  - Acceptance: Removes ralph files with `[y/N]` confirmation, `--force` skips prompt, succeeds if no files
+## CLI Interface
 
-- [ ] **Task 2.3**: Implement `ralphctl init` command
-  - Context: Clean command works
-  - Acceptance: Fetches templates from GitHub, caches locally, refuses without `--force` if files exist, verifies claude CLI
+```
+ralphctl reverse [OPTIONS] [QUESTION]
 
-- [ ] **Task 2.4**: Implement `ralphctl run` command (core loop)
-  - Context: Status and init commands work
-  - Acceptance: Pipes PROMPT.md to `claude -p`, streams output, detects magic strings, respects --max-iterations
+Arguments:
+  [QUESTION]  The investigation question (reads from QUESTION.md if omitted)
 
-## Phase 3: Robustness & Polish
+Options:
+      --max-iterations <N>  Maximum iterations before stopping [default: 100]
+      --pause               Prompt for confirmation before each iteration
+      --model <MODEL>       Claude model to use (e.g., 'sonnet', 'opus')
+  -h, --help                Print help
+```
 
-- [ ] **Task 3.1**: Add logging to file during `run`
-  - Context: Run command works
-  - Acceptance: Each iteration logged with structured sections to ralph.log (append mode)
+### Usage Examples
 
-- [ ] **Task 3.2**: Add graceful Ctrl+C handling
-  - Context: Run command works
-  - Acceptance: Forwards signal to child, prints summary, exits cleanly
+```bash
+# Provide question directly
+ralphctl reverse "Why does the authentication flow fail for OAuth users?"
 
-- [ ] **Task 3.3**: Add `--pause` flag for interactive confirmation between iterations
-  - Context: Run command works
-  - Acceptance: With `--pause`, prompts `Ready for iteration N. Press Enter...` before each iteration
+# Use existing QUESTION.md
+ralphctl reverse
 
-- [ ] **Task 3.4**: Add fallback handling for missing magic strings
-  - Context: Run command works
-  - Acceptance: If no marker detected after iteration, prompts user for action
+# With options
+ralphctl reverse --model opus --max-iterations 50 "Why is the cache invalidation slow?"
+ralphctl reverse --pause "How does the payment processing work?"
+```
 
-## Phase 4: Distribution
+## File Ecosystem
 
-- [ ] **Task 4.1**: Set up cross-rs for cross-compilation
-  - Context: All features complete
-  - Acceptance: `cross build --target x86_64-unknown-linux-gnu` produces working binary
+Reverse Mode uses its own files, independent from Forward Mode:
 
-- [ ] **Task 4.2**: Add GitHub Actions release workflow
-  - Context: Cross-compilation works
-  - Acceptance: Git tag `v*` triggers builds for macOS (arm64, x86_64), Linux (x86_64, arm64)
+| File | Created By | Purpose |
+|------|------------|---------|
+| `QUESTION.md` | User or `ralphctl reverse` | The investigation question |
+| `INVESTIGATION.md` | Claude agent | Running log of hypotheses with checkboxes |
+| `FINDINGS.md` | Claude agent | Final synthesized report |
+| `REVERSE_PROMPT.md` | `ralphctl reverse` (fetched) | Instructions for investigation loop |
 
-## Phase 5: Documentation
+### QUESTION.md Structure
 
-- [ ] **Task 5.1**: Write README with installation, usage, examples
-  - Context: All features complete
-  - Acceptance: README covers all commands with examples
+Created automatically when user runs `ralphctl reverse "question"` or as a template when no argument provided:
 
-- [ ] **Task 5.2**: Add `--help` text polish and examples in clap
-  - Context: All commands implemented
-  - Acceptance: Help text is clear with usage examples
+```markdown
+# Investigation Question
 
-- [ ] **Task 5.3**: Create CHANGELOG.md for v0.1.0
-  - Context: Ready to release
-  - Acceptance: Documents all features in initial release
+<user's question here>
 
-- [ ] **Task 5.4**: Create templates directory with SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md
-  - Context: Ready to release
-  - Acceptance: Templates exist in repo at templates/ directory
+## Context (Optional)
+
+<any additional context the user wants to provide>
+```
+
+Minimal template (when created without argument):
+
+```markdown
+# Investigation Question
+
+Describe what you want to investigate...
+```
+
+### INVESTIGATION.md Structure
+
+Created and maintained by the Claude agent during investigation:
+
+```markdown
+# Investigation Log
+
+**Question:** <copied from QUESTION.md>
+**Started:** <timestamp>
+**Status:** In Progress | Answered | Inconclusive
+
+## Hypothesis 1: <title>
+- [ ] Check <thing>
+- [x] Examined <thing> — <finding>
+- **Result:** Ruled Out | Confirmed | Partially Confirmed
+
+## Hypothesis 2: <title>
+- [ ] Investigate <aspect>
+- [x] Found <evidence>
+- **Result:** Ruled Out
+
+## Dead Ends
+- <approach that didn't work and why>
+
+## Key Findings
+- <important discoveries along the way>
+```
+
+### FINDINGS.md Structure
+
+Created by the Claude agent when investigation concludes:
+
+```markdown
+# Investigation Findings
+
+**Question:** <original question>
+**Status:** Answered | Inconclusive
+**Date:** <timestamp>
+
+## Summary
+
+<1-2 paragraph answer to the question>
+
+## Evidence
+
+<supporting details, file references, code snippets>
+
+## Recommendations
+
+<suggested next steps or actions>
+
+## Investigation Path
+
+<brief summary of hypotheses explored>
+```
+
+## Signal Protocol
+
+Reverse Mode uses these signals:
+
+| Signal | Meaning | Exit Code |
+|--------|---------|-----------|
+| `[[RALPH:CONTINUE]]` | Still investigating, more hypotheses to explore | (loop continues) |
+| `[[RALPH:FOUND:<summary>]]` | Question answered, FINDINGS.md written | 0 |
+| `[[RALPH:INCONCLUSIVE:<why>]]` | Cannot determine answer, FINDINGS.md written | 4 |
+| `[[RALPH:BLOCKED:<reason>]]` | Cannot proceed (same as forward mode) | 3 |
+
+Detection priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE (first match wins)
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (FOUND signal detected) |
+| 1 | General error |
+| 2 | Max iterations reached (default: 100) |
+| 3 | Blocked (BLOCKED signal detected) |
+| 4 | Inconclusive (INCONCLUSIVE signal detected) |
+| 130 | Interrupted (Ctrl+C) |
+
+## Iteration Flow
+
+1. **User invokes**: `ralphctl reverse "Why does auth fail?"`
+2. **Question setup**:
+   - If argument provided: write to QUESTION.md
+   - If no argument and QUESTION.md exists: use existing file
+   - If no argument and no QUESTION.md: create template, print instructions, exit 1
+3. **Template fetch**: Fetch/cache REVERSE_PROMPT.md from GitHub (like PROMPT.md)
+4. **Loop iteration**:
+   a. Print `=== Iteration N starting ===`
+   b. If `--pause`: prompt for confirmation
+   c. Pipe REVERSE_PROMPT.md to `claude -p --dangerously-skip-permissions`
+   d. Claude reads QUESTION.md and INVESTIGATION.md (if exists)
+   e. Claude explores codebase, updates INVESTIGATION.md with hypothesis status
+   f. Claude outputs signal or continues investigating
+5. **Termination**:
+   - On FOUND: Claude has written FINDINGS.md, exit 0
+   - On INCONCLUSIVE: Claude has written FINDINGS.md, exit 4
+   - On BLOCKED: Print reason, exit 3
+   - On max iterations: Print warning, exit 2
+   - On Ctrl+C: Print summary, exit 130
+
+## Integration with Existing Commands
+
+### `ralphctl clean`
+
+Extended to handle reverse files:
+
+```rust
+// All ralph files (forward + reverse)
+const ALL_RALPH_FILES: &[&str] = &[
+    // Forward mode
+    "SPEC.md", "IMPLEMENTATION_PLAN.md", "PROMPT.md", "ralph.log",
+    // Reverse mode
+    "QUESTION.md", "INVESTIGATION.md", "FINDINGS.md", "REVERSE_PROMPT.md",
+];
+```
+
+Behavior: `ralphctl clean` removes all ralph files (both modes) with same confirmation UX.
+
+### `ralphctl archive`
+
+Extended to archive reverse files:
+
+- Archive: QUESTION.md, INVESTIGATION.md, FINDINGS.md (not REVERSE_PROMPT.md - it's a template)
+- Same timestamped directory structure: `.ralphctl/archive/<timestamp>/`
+- Reset: QUESTION.md and INVESTIGATION.md reset to blank (FINDINGS.md deleted)
+
+## Implementation Architecture
+
+### New Module: `reverse.rs`
+
+```rust
+//! Reverse mode implementation for ralphctl.
+//!
+//! Provides investigation loop logic distinct from forward mode.
+
+use crate::{error, files};
+use anyhow::Result;
+use std::path::Path;
+
+/// Reverse mode signal types
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReverseSignal {
+    Continue,             // [[RALPH:CONTINUE]] - still investigating
+    Found(String),        // [[RALPH:FOUND:<summary>]]
+    Inconclusive(String), // [[RALPH:INCONCLUSIVE:<why>]]
+    Blocked(String),      // [[RALPH:BLOCKED:<reason>]]
+    NoSignal,
+}
+
+/// Validate reverse mode files exist.
+pub fn validate_reverse_files() -> Result<()>;
+
+/// Read the investigation question.
+pub fn read_question() -> Result<String>;
+
+/// Create minimal QUESTION.md template.
+pub fn create_question_template() -> Result<()>;
+
+/// Detect reverse mode signals in output.
+/// Priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE
+pub fn detect_reverse_signal(output: &str) -> ReverseSignal;
+
+/// Signal markers
+pub const RALPH_FOUND_PREFIX: &str = "[[RALPH:FOUND:";
+pub const RALPH_INCONCLUSIVE_PREFIX: &str = "[[RALPH:INCONCLUSIVE:";
+// Note: CONTINUE and BLOCKED markers are shared with forward mode (run.rs)
+```
+
+### Modified: `files.rs`
+
+```rust
+// Reverse mode files
+pub const QUESTION_FILE: &str = "QUESTION.md";
+pub const INVESTIGATION_FILE: &str = "INVESTIGATION.md";
+pub const FINDINGS_FILE: &str = "FINDINGS.md";
+pub const REVERSE_PROMPT_FILE: &str = "REVERSE_PROMPT.md";
+
+// Combined file lists
+pub const REVERSE_FILES: &[&str] = &[
+    QUESTION_FILE,
+    INVESTIGATION_FILE,
+    FINDINGS_FILE,
+    REVERSE_PROMPT_FILE,
+];
+
+pub fn find_existing_reverse_files(dir: &Path) -> Vec<PathBuf>;
+pub fn find_archivable_reverse_files(dir: &Path) -> Vec<PathBuf>;
+```
+
+### Modified: `error.rs`
+
+```rust
+pub mod exit {
+    pub const SUCCESS: i32 = 0;
+    pub const ERROR: i32 = 1;
+    pub const MAX_ITERATIONS: i32 = 2;
+    pub const BLOCKED: i32 = 3;
+    pub const INCONCLUSIVE: i32 = 4;  // NEW
+    pub const INTERRUPTED: i32 = 130;
+}
+```
+
+### Modified: `main.rs`
+
+```rust
+#[derive(Subcommand)]
+enum Command {
+    // ... existing commands ...
+
+    /// Investigate a codebase to answer a question
+    #[command(
+        long_about = "Run an autonomous investigation loop to answer a question about the codebase.\n\n\
+                      Unlike 'run' which builds software, 'reverse' analyzes code to answer questions—\n\
+                      diagnosing bugs, understanding systems, or mapping dependencies before changes.",
+        after_help = "EXAMPLES:\n  \
+                      ralphctl reverse \"Why does the cache fail?\"\n  \
+                      ralphctl reverse --model opus \"How does auth work?\"\n  \
+                      ralphctl reverse --pause\n\n\
+                      EXIT CODES:\n  \
+                      0   Found (question answered)\n  \
+                      1   Error\n  \
+                      2   Max iterations reached\n  \
+                      3   Blocked\n  \
+                      4   Inconclusive\n  \
+                      130 Interrupted"
+    )]
+    Reverse {
+        /// The investigation question (reads from QUESTION.md if omitted)
+        question: Option<String>,
+
+        /// Maximum iterations before stopping
+        #[arg(long, default_value = "100", value_name = "N")]
+        max_iterations: u32,
+
+        /// Prompt for confirmation before each iteration
+        #[arg(long)]
+        pause: bool,
+
+        /// Claude model to use (e.g., 'sonnet', 'opus')
+        #[arg(long, value_name = "MODEL")]
+        model: Option<String>,
+    },
+}
+```
+
+### New Template: `REVERSE_PROMPT.md`
+
+```markdown
+# Ralph Reverse Mode Prompt
+
+You are operating in an autonomous investigation loop. Your job is to answer a question about this codebase.
+
+## Context Files
+
+- `QUESTION.md` - The investigation question (read first)
+- `INVESTIGATION.md` - Your running investigation log (read and update)
+
+## Your Mission (Single Iteration)
+
+### Step 1: Orient
+
+1. Read `QUESTION.md` to understand what you're investigating
+2. Read `INVESTIGATION.md` (if it exists) to see what you've already tried
+3. Identify the next hypothesis to explore or the next check to perform
+
+### Step 2: Investigate
+
+1. Explore the codebase to gather evidence
+2. Use Glob, Grep, and Read to examine relevant files
+3. Follow the trail of evidence where it leads
+4. Document your findings in INVESTIGATION.md
+
+### Step 3: Update State
+
+Update `INVESTIGATION.md` with:
+- New hypotheses as `## Hypothesis N: <title>` with checkbox items
+- Mark checked items as `- [x]` with findings
+- Add dead ends and key findings sections as needed
+
+### Step 4: Signal Completion
+
+After your investigation work, output exactly one of these signals on its own line:
+
+**Question answered (you have a confident answer):**
+```
+[[RALPH:FOUND:<brief summary of answer>]]
+```
+Before outputting this signal, you MUST write FINDINGS.md with your complete answer.
+
+**Cannot determine answer (exhausted reasonable approaches):**
+```
+[[RALPH:INCONCLUSIVE:<why you can't determine the answer>]]
+```
+Before outputting this signal, you MUST write FINDINGS.md documenting what you tried and why it's inconclusive.
+
+**Cannot proceed due to blocker:**
+```
+[[RALPH:BLOCKED:<reason>]]
+```
+
+---
+
+## Rules
+
+1. **Read-only intent** - Do not modify application code; only update INVESTIGATION.md and FINDINGS.md
+2. **One hypothesis per iteration** - Explore one avenue, document findings, then signal
+3. **Always document** - Update INVESTIGATION.md before signaling
+4. **Write findings when done** - FINDINGS.md must exist before FOUND or INCONCLUSIVE
+5. **Be thorough but focused** - Follow evidence but don't go on tangents
+6. **Cite your sources** - Reference specific files and line numbers in findings
+
+## INVESTIGATION.md Format
+
+```markdown
+# Investigation Log
+
+**Question:** <from QUESTION.md>
+**Started:** <timestamp>
+**Status:** In Progress
+
+## Hypothesis 1: <descriptive title>
+- [ ] Check <specific thing>
+- [x] Examined <thing> — <what you found>
+- **Result:** Ruled Out | Confirmed | Partially Confirmed
+
+## Dead Ends
+- <approach that didn't pan out>
+
+## Key Findings
+- <important discoveries>
+```
+
+## FINDINGS.md Format
+
+```markdown
+# Investigation Findings
+
+**Question:** <original question>
+**Status:** Answered | Inconclusive
+**Date:** <timestamp>
+
+## Summary
+<1-2 paragraph answer>
+
+## Evidence
+<file references, code snippets, proof>
+
+## Recommendations
+<suggested next steps>
+
+## Investigation Path
+<summary of what was explored>
+```
+
+---
+
+**Begin by reading QUESTION.md, then start or continue your investigation.**
+```
+
+## Acceptance Criteria
+
+1. **CLI Parsing**: `ralphctl reverse "question"` creates QUESTION.md and starts investigation
+2. **No-arg behavior**: `ralphctl reverse` without args uses QUESTION.md or creates template
+3. **Template creation**: Missing QUESTION.md triggers template creation with instructions
+4. **Template fetching**: REVERSE_PROMPT.md fetched from GitHub and cached
+5. **Signal detection**: FOUND, INCONCLUSIVE, BLOCKED signals detected correctly
+6. **Exit codes**: Correct exit code for each termination condition
+7. **Iteration loop**: Same subprocess spawning and streaming as forward mode
+8. **Logging**: Iterations logged to ralph.log
+9. **Pause mode**: --pause flag works identically to forward mode
+10. **Model flag**: --model flag passed to claude subprocess
+11. **Clean integration**: `ralphctl clean` removes reverse files
+12. **Archive integration**: `ralphctl archive` archives reverse files
+13. **Help text**: `ralphctl reverse --help` displays comprehensive usage
 
 ## Testing Strategy
 
-- **Unit tests**: Markdown checkbox parsing, template caching logic, argument validation
-- **Integration tests**: Full command execution with fixture files, mock HTTP responses
-- **Platform tests**: CI matrix covers macOS and Linux
-- **E2E tests**: Deferred to post-v1 (manual testing for now)
+- **Unit tests**: Signal detection for FOUND/INCONCLUSIVE/BLOCKED
+- **Unit tests**: Question file reading and template creation
+- **Integration tests**: Full reverse command with mock claude
+- **Integration tests**: Clean/archive with reverse files present
 
 ---
 
@@ -328,6 +707,43 @@ ralphctl run [--max-iterations N] [--pause]
 - 2: Max iterations reached
 - 130: Interrupted (Ctrl+C)
 
+### `ralphctl reverse`
+
+Investigate a codebase to answer a question.
+
+```
+ralphctl reverse [OPTIONS] [QUESTION]
+```
+
+**Arguments:**
+- `QUESTION`: The investigation question (optional; reads from QUESTION.md if omitted)
+
+**Flags:**
+- `--max-iterations N`: Maximum iterations before stopping (default: 100)
+- `--pause`: Prompt for confirmation before each iteration
+- `--model MODEL`: Claude model to use
+
+**Behavior:**
+1. If QUESTION provided: write to QUESTION.md
+2. If no QUESTION and QUESTION.md missing: create template, print instructions, exit
+3. Fetch/cache REVERSE_PROMPT.md
+4. For each iteration:
+   - Print `=== Iteration N starting ===`
+   - If `--pause`: prompt for confirmation
+   - Pipe REVERSE_PROMPT.md to `claude -p`, stream output
+   - Log iteration to ralph.log
+   - Check for signals (BLOCKED → FOUND → INCONCLUSIVE)
+   - If no signal, prompt user for action
+5. On termination signal or max iterations, exit with appropriate code
+
+**Exit codes:**
+- 0: Found (question answered)
+- 1: Error
+- 2: Max iterations reached
+- 3: Blocked
+- 4: Inconclusive
+- 130: Interrupted (Ctrl+C)
+
 ### `ralphctl status`
 
 Show ralph loop progress.
@@ -357,7 +773,7 @@ ralphctl clean [--force]
 - `--force`: Skip confirmation prompt
 
 **Behavior:**
-1. Find ralph files: SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md, ralph.log
+1. Find all ralph files (forward mode + reverse mode)
 2. If no files found: print `No ralph files found.` and exit 0
 3. If files found and no `--force`: prompt `Delete N ralph files? [y/N]`
 4. On confirmation or `--force`: delete files
@@ -366,12 +782,29 @@ ralphctl clean [--force]
 - 0: Success (or no files to clean)
 - 1: User declined confirmation
 
+### `ralphctl archive`
+
+Archive ralph files and reset.
+
+```
+ralphctl archive [--force]
+```
+
+**Flags:**
+- `--force`: Skip confirmation prompt
+
+**Behavior:**
+1. Find archivable files (SPEC.md, IMPLEMENTATION_PLAN.md, QUESTION.md, INVESTIGATION.md, FINDINGS.md)
+2. Copy to timestamped directory: `.ralphctl/archive/<timestamp>/`
+3. Reset files to blank templates (delete FINDINGS.md)
+
 ---
 
 # Specification Evolution
 
 ## Version History
 
+- v3.0 (2025-01-27): Added Reverse Mode specification
 - v2.0 (2025-01-26): Major revision after interview - template fetch, streaming output, magic strings, Unix-only
 - v1.0 (2025-01-26): Initial specification
 
@@ -380,6 +813,7 @@ ralphctl clean [--force]
 - ~~Should `ralphctl init` embed the full interview prompt or fetch it from a URL?~~ → Fetch from GitHub, cache locally
 - ~~Should there be a `ralphctl resume` command distinct from `run`?~~ → No, `run` always resumes
 - ~~What's the right default for `--max-iterations`?~~ → 50 (matches ralph.sh)
+- ~~Should reverse mode have its own log file?~~ → No, share ralph.log
 
 ## Future Considerations
 
@@ -389,3 +823,5 @@ ralphctl clean [--force]
 - **TUI mode**: Interactive terminal UI for monitoring long-running loops
 - **Config file**: `.ralphctl.toml` for project-specific defaults
 - **Template system**: Different prompt templates for different project types
+- **Learning mode**: Educational verbosity for understanding how the loop works
+- **Prompt tuning**: Guided prompt adjustment when investigations fail repeatedly
