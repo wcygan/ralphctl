@@ -350,12 +350,35 @@ fn run_empty_blocked_reason() {
 }
 
 #[test]
-fn run_done_signal_inline() {
+fn run_done_signal_rejects_inline_mention() {
     let dir = temp_dir();
     create_ralph_files(&dir);
 
-    // DONE signal can appear anywhere in the output
+    // DONE signal must be on its own line - inline mentions are rejected
+    // to prevent false positives when Claude discusses the marker
     let mock_output = "Some text [[RALPH:DONE]] more text\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .code(2) // MAX_ITERATIONS because DONE was not detected
+        .stderr(predicate::str::contains("max iterations"));
+}
+
+#[test]
+fn run_done_signal_with_whitespace() {
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    // DONE signal can have leading/trailing whitespace on its line
+    let mock_output = "Working...\n  [[RALPH:DONE]]  \nExtra output\n";
     let bin_dir = create_mock_claude(&dir, mock_output);
 
     let path = format!("{}:/usr/bin", bin_dir.display());

@@ -135,16 +135,21 @@ pub enum LoopSignal {
     Continue,
 }
 
-/// Check if the output contains the RALPH:DONE marker.
+/// Check if the output contains the RALPH:DONE marker on its own line.
 ///
 /// Scans the provided output string for the magic string `[[RALPH:DONE]]`.
+/// The marker must appear alone on a line (with optional whitespace) to be
+/// detected. This prevents false positives when Claude discusses or quotes
+/// the marker in its output.
+///
 /// Returns `LoopSignal::Done` if found, `LoopSignal::Continue` otherwise.
 pub fn detect_done_signal(output: &str) -> LoopSignal {
-    if output.contains(RALPH_DONE_MARKER) {
-        LoopSignal::Done
-    } else {
-        LoopSignal::Continue
+    for line in output.lines() {
+        if line.trim() == RALPH_DONE_MARKER {
+            return LoopSignal::Done;
+        }
     }
+    LoopSignal::Continue
 }
 
 /// Magic string prefix for blocked signal.
@@ -152,15 +157,24 @@ pub const RALPH_BLOCKED_PREFIX: &str = "[[RALPH:BLOCKED:";
 /// Magic string suffix for blocked signal.
 pub const RALPH_BLOCKED_SUFFIX: &str = "]]";
 
-/// Check if the output contains a RALPH:BLOCKED signal.
+/// Check if the output contains a RALPH:BLOCKED signal on its own line.
 ///
 /// Scans for `[[RALPH:BLOCKED:<reason>]]` pattern and extracts the reason.
+/// The marker must appear alone on a line (with optional whitespace) to be
+/// detected. This prevents false positives when Claude discusses or quotes
+/// the marker in its output.
+///
 /// Returns `Some(reason)` if found, `None` otherwise.
 pub fn detect_blocked_signal(output: &str) -> Option<String> {
-    let start = output.find(RALPH_BLOCKED_PREFIX)?;
-    let after_prefix = &output[start + RALPH_BLOCKED_PREFIX.len()..];
-    let end = after_prefix.find(RALPH_BLOCKED_SUFFIX)?;
-    Some(after_prefix[..end].to_string())
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix(RALPH_BLOCKED_PREFIX) {
+            if let Some(reason) = rest.strip_suffix(RALPH_BLOCKED_SUFFIX) {
+                return Some(reason.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Spawn `claude -p` as a subprocess and pipe the prompt via stdin.
@@ -422,10 +436,25 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_done_signal_found_inline() {
-        // Marker can appear anywhere in the output
+    fn test_detect_done_signal_rejects_inline() {
+        // Marker must be alone on a line - inline mentions are rejected
+        // to prevent false positives when Claude discusses the marker
         let output = "Work finished [[RALPH:DONE]] done";
+        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
+    }
+
+    #[test]
+    fn test_detect_done_signal_with_whitespace() {
+        // Marker can have leading/trailing whitespace on its line
+        let output = "Some output\n  [[RALPH:DONE]]  \nMore text";
         assert_eq!(detect_done_signal(output), LoopSignal::Done);
+    }
+
+    #[test]
+    fn test_detect_done_signal_rejects_quoted_mention() {
+        // When Claude explains what the marker does, it shouldn't trigger
+        let output = "The test covers `[[RALPH:DONE]]` signal detection";
+        assert_eq!(detect_done_signal(output), LoopSignal::Continue);
     }
 
     #[test]
@@ -478,12 +507,27 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_blocked_signal_inline() {
+    fn test_detect_blocked_signal_rejects_inline() {
+        // Marker must be alone on a line - inline mentions are rejected
         let output = "Text before [[RALPH:BLOCKED:need user input]] text after";
+        assert_eq!(detect_blocked_signal(output), None);
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_with_whitespace() {
+        // Marker can have leading/trailing whitespace on its line
+        let output = "Some output\n  [[RALPH:BLOCKED:need user input]]  \nMore text";
         assert_eq!(
             detect_blocked_signal(output),
             Some("need user input".to_string())
         );
+    }
+
+    #[test]
+    fn test_detect_blocked_signal_rejects_quoted_mention() {
+        // When Claude explains what the marker does, it shouldn't trigger
+        let output = "The test covers `[[RALPH:BLOCKED:reason]]` detection";
+        assert_eq!(detect_blocked_signal(output), None);
     }
 
     #[test]
