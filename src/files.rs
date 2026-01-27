@@ -6,11 +6,17 @@
 
 use std::path::{Path, PathBuf};
 
-/// The canonical ralph file names.
+/// The canonical ralph file names (forward mode).
 pub const SPEC_FILE: &str = "SPEC.md";
 pub const IMPLEMENTATION_PLAN_FILE: &str = "IMPLEMENTATION_PLAN.md";
 pub const PROMPT_FILE: &str = "PROMPT.md";
 pub const LOG_FILE: &str = "ralph.log";
+
+/// Reverse mode file names.
+pub const QUESTION_FILE: &str = "QUESTION.md";
+pub const INVESTIGATION_FILE: &str = "INVESTIGATION.md";
+pub const FINDINGS_FILE: &str = "FINDINGS.md";
+pub const REVERSE_PROMPT_FILE: &str = "REVERSE_PROMPT.md";
 
 /// All ralph files that can be created/cleaned.
 pub const RALPH_FILES: &[&str] = &[SPEC_FILE, IMPLEMENTATION_PLAN_FILE, PROMPT_FILE, LOG_FILE];
