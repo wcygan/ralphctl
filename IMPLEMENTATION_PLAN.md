@@ -127,7 +127,7 @@
 - [x] Update `archive_cmd()` to handle reverse files (archive and reset)
 - [x] Update `generate_blank_content()` for QUESTION.md reset
 - [x] Write integration tests for clean command with reverse files
-- [ ] Write integration tests for archive command with reverse files
+- [x] Write integration tests for archive command with reverse files
 
 ## Phase 15: Reverse Mode Testing
 

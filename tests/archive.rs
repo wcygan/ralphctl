@@ -260,3 +260,205 @@ fn archive_prompt_shows_file_count() {
         .code(1)
         .stderr(predicate::str::contains("Archive 2 files?"));
 }
+
+// ========== Reverse mode file tests ==========
+
+#[test]
+fn archive_reverse_files_copies_to_archive() {
+    let dir = temp_dir();
+
+    let question_content = "# Investigation Question\n\nWhy does auth fail?";
+    let investigation_content = "# Investigation Log\n\n## Hypothesis 1\n- [x] Checked auth.rs";
+    let findings_content = "# Investigation Findings\n\nThe bug is in auth.rs:42";
+
+    fs::write(dir.path().join("QUESTION.md"), question_content).unwrap();
+    fs::write(dir.path().join("INVESTIGATION.md"), investigation_content).unwrap();
+    fs::write(dir.path().join("FINDINGS.md"), findings_content).unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("archive")
+        .arg("--force")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Archived 3 files"));
+
+    // Find the archive directory
+    let archive_base = dir.path().join(".ralphctl").join("archive");
+    let timestamp_dirs: Vec<_> = fs::read_dir(&archive_base).unwrap().collect();
+    assert_eq!(timestamp_dirs.len(), 1);
+
+    let timestamp_dir = timestamp_dirs[0].as_ref().unwrap().path();
+
+    // Verify archived files have original content
+    assert_eq!(
+        fs::read_to_string(timestamp_dir.join("QUESTION.md")).unwrap(),
+        question_content
+    );
+    assert_eq!(
+        fs::read_to_string(timestamp_dir.join("INVESTIGATION.md")).unwrap(),
+        investigation_content
+    );
+    assert_eq!(
+        fs::read_to_string(timestamp_dir.join("FINDINGS.md")).unwrap(),
+        findings_content
+    );
+}
+
+#[test]
+fn archive_reverse_files_resets_question_and_investigation() {
+    let dir = temp_dir();
+
+    fs::write(dir.path().join("QUESTION.md"), "# Original question").unwrap();
+    fs::write(
+        dir.path().join("INVESTIGATION.md"),
+        "# Original investigation",
+    )
+    .unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("archive")
+        .arg("--force")
+        .assert()
+        .success();
+
+    // Verify files are reset to blank templates
+    let question = fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+    let investigation = fs::read_to_string(dir.path().join("INVESTIGATION.md")).unwrap();
+
+    assert!(question.contains("# Investigation Question"));
+    assert!(question.contains("Describe what you want to investigate"));
+    assert_eq!(investigation, "# Investigation Log\n\n");
+}
+
+#[test]
+fn archive_reverse_files_deletes_findings() {
+    let dir = temp_dir();
+
+    fs::write(dir.path().join("QUESTION.md"), "# Question").unwrap();
+    fs::write(dir.path().join("FINDINGS.md"), "# Findings with answer").unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("archive")
+        .arg("--force")
+        .assert()
+        .success();
+
+    // FINDINGS.md should be deleted, not reset
+    assert!(!dir.path().join("FINDINGS.md").exists());
+
+    // QUESTION.md should be reset (still exists)
+    assert!(dir.path().join("QUESTION.md").exists());
+}
+
+#[test]
+fn archive_both_modes_together() {
+    let dir = temp_dir();
+
+    // Create forward mode files
+    fs::write(dir.path().join("SPEC.md"), "# Forward Spec").unwrap();
+    fs::write(dir.path().join("IMPLEMENTATION_PLAN.md"), "# Forward Plan").unwrap();
+    // Create reverse mode files
+    fs::write(dir.path().join("QUESTION.md"), "# Reverse Question").unwrap();
+    fs::write(
+        dir.path().join("INVESTIGATION.md"),
+        "# Reverse Investigation",
+    )
+    .unwrap();
+    fs::write(dir.path().join("FINDINGS.md"), "# Reverse Findings").unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("archive")
+        .arg("--force")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Archived 5 files"));
+
+    // Find the archive directory
+    let archive_base = dir.path().join(".ralphctl").join("archive");
+    let timestamp_dirs: Vec<_> = fs::read_dir(&archive_base).unwrap().collect();
+    let timestamp_dir = timestamp_dirs[0].as_ref().unwrap().path();
+
+    // Verify all files were archived
+    assert!(timestamp_dir.join("SPEC.md").exists());
+    assert!(timestamp_dir.join("IMPLEMENTATION_PLAN.md").exists());
+    assert!(timestamp_dir.join("QUESTION.md").exists());
+    assert!(timestamp_dir.join("INVESTIGATION.md").exists());
+    assert!(timestamp_dir.join("FINDINGS.md").exists());
+
+    // Verify forward files are reset
+    assert_eq!(
+        fs::read_to_string(dir.path().join("SPEC.md")).unwrap(),
+        "# Specification\n\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("IMPLEMENTATION_PLAN.md")).unwrap(),
+        "# Implementation Plan\n\n"
+    );
+
+    // Verify QUESTION.md and INVESTIGATION.md are reset
+    assert!(fs::read_to_string(dir.path().join("QUESTION.md"))
+        .unwrap()
+        .contains("# Investigation Question"));
+    assert_eq!(
+        fs::read_to_string(dir.path().join("INVESTIGATION.md")).unwrap(),
+        "# Investigation Log\n\n"
+    );
+
+    // Verify FINDINGS.md is deleted
+    assert!(!dir.path().join("FINDINGS.md").exists());
+}
+
+#[test]
+fn archive_reverse_excludes_reverse_prompt() {
+    let dir = temp_dir();
+
+    // REVERSE_PROMPT.md is a template, should NOT be archived
+    fs::write(dir.path().join("QUESTION.md"), "# Question").unwrap();
+    fs::write(
+        dir.path().join("REVERSE_PROMPT.md"),
+        "# Reverse Prompt Template",
+    )
+    .unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("archive")
+        .arg("--force")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Archived 1 file")); // Only QUESTION.md
+
+    // Verify REVERSE_PROMPT.md was NOT archived
+    let archive_base = dir.path().join(".ralphctl").join("archive");
+    let timestamp_dirs: Vec<_> = fs::read_dir(&archive_base).unwrap().collect();
+    let timestamp_dir = timestamp_dirs[0].as_ref().unwrap().path();
+
+    assert!(!timestamp_dir.join("REVERSE_PROMPT.md").exists());
+
+    // REVERSE_PROMPT.md should still exist in the original location, unchanged
+    assert_eq!(
+        fs::read_to_string(dir.path().join("REVERSE_PROMPT.md")).unwrap(),
+        "# Reverse Prompt Template"
+    );
+}
+
+#[test]
+fn archive_prompt_includes_reverse_file_count() {
+    let dir = temp_dir();
+
+    fs::write(dir.path().join("QUESTION.md"), "# Question").unwrap();
+    fs::write(dir.path().join("INVESTIGATION.md"), "# Investigation").unwrap();
+    fs::write(dir.path().join("FINDINGS.md"), "# Findings").unwrap();
+
+    ralphctl()
+        .current_dir(dir.path())
+        .arg("archive")
+        .write_stdin("n\n")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("Archive 3 files?"));
+}
