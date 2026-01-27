@@ -42,11 +42,25 @@ pub const RALPHCTL_DIR: &str = ".ralphctl";
 /// The archive subdirectory within .ralphctl.
 pub const ARCHIVE_DIR: &str = "archive";
 
+/// All ralph files (forward mode + reverse mode) that can be cleaned.
+pub const ALL_RALPH_FILES: &[&str] = &[
+    // Forward mode
+    SPEC_FILE,
+    IMPLEMENTATION_PLAN_FILE,
+    PROMPT_FILE,
+    LOG_FILE,
+    // Reverse mode
+    QUESTION_FILE,
+    INVESTIGATION_FILE,
+    FINDINGS_FILE,
+    REVERSE_PROMPT_FILE,
+];
+
 /// Find all ralph files that exist in the given directory.
 ///
-/// Returns a list of paths to existing ralph files.
+/// Returns a list of paths to existing ralph files (both forward and reverse mode).
 pub fn find_existing_ralph_files(dir: &Path) -> Vec<PathBuf> {
-    RALPH_FILES
+    ALL_RALPH_FILES
         .iter()
         .map(|name| dir.join(name))
         .filter(|path| path.exists())
@@ -55,7 +69,7 @@ pub fn find_existing_ralph_files(dir: &Path) -> Vec<PathBuf> {
 
 /// Check if any ralph files exist in the given directory.
 pub fn any_ralph_files_exist(dir: &Path) -> bool {
-    RALPH_FILES.iter().any(|name| dir.join(name).exists())
+    ALL_RALPH_FILES.iter().any(|name| dir.join(name).exists())
 }
 
 /// Find all reverse mode ralph files that exist in the given directory.
@@ -137,13 +151,13 @@ mod tests {
     fn test_find_existing_all_files() {
         let dir = create_temp_dir();
 
-        // Create all ralph files
-        for name in RALPH_FILES {
+        // Create all ralph files (forward + reverse)
+        for name in ALL_RALPH_FILES {
             fs::write(dir.path().join(name), "content").unwrap();
         }
 
         let found = find_existing_ralph_files(dir.path());
-        assert_eq!(found.len(), RALPH_FILES.len());
+        assert_eq!(found.len(), ALL_RALPH_FILES.len());
     }
 
     #[test]
@@ -167,6 +181,22 @@ mod tests {
         assert!(RALPH_FILES.contains(&PROMPT_FILE));
         assert!(RALPH_FILES.contains(&LOG_FILE));
         assert_eq!(RALPH_FILES.len(), 4);
+    }
+
+    #[test]
+    fn test_all_ralph_files_constant_completeness() {
+        // Verify ALL_RALPH_FILES contains both forward and reverse mode files
+        // Forward mode
+        assert!(ALL_RALPH_FILES.contains(&SPEC_FILE));
+        assert!(ALL_RALPH_FILES.contains(&IMPLEMENTATION_PLAN_FILE));
+        assert!(ALL_RALPH_FILES.contains(&PROMPT_FILE));
+        assert!(ALL_RALPH_FILES.contains(&LOG_FILE));
+        // Reverse mode
+        assert!(ALL_RALPH_FILES.contains(&QUESTION_FILE));
+        assert!(ALL_RALPH_FILES.contains(&INVESTIGATION_FILE));
+        assert!(ALL_RALPH_FILES.contains(&FINDINGS_FILE));
+        assert!(ALL_RALPH_FILES.contains(&REVERSE_PROMPT_FILE));
+        assert_eq!(ALL_RALPH_FILES.len(), 8);
     }
 
     #[test]
@@ -270,22 +300,53 @@ mod tests {
     }
 
     #[test]
-    fn test_reverse_files_independent_from_forward() {
+    fn test_reverse_files_discovery_separate() {
         let dir = create_temp_dir();
 
         // Create only forward mode files
         fs::write(dir.path().join(SPEC_FILE), "# Spec").unwrap();
         fs::write(dir.path().join(PROMPT_FILE), "# Prompt").unwrap();
 
-        // Reverse file discovery should find nothing
+        // Reverse-only file discovery should find nothing
         let reverse_found = find_existing_reverse_files(dir.path());
         assert!(reverse_found.is_empty());
         assert!(!any_reverse_files_exist(dir.path()));
 
-        // But forward file discovery should find them
-        let forward_found = find_existing_ralph_files(dir.path());
-        assert_eq!(forward_found.len(), 2);
+        // Combined discovery should find forward files
+        let all_found = find_existing_ralph_files(dir.path());
+        assert_eq!(all_found.len(), 2);
         assert!(any_ralph_files_exist(dir.path()));
+    }
+
+    #[test]
+    fn test_find_existing_ralph_files_includes_reverse() {
+        let dir = create_temp_dir();
+
+        // Create reverse mode files only
+        fs::write(dir.path().join(QUESTION_FILE), "# Question").unwrap();
+        fs::write(dir.path().join(INVESTIGATION_FILE), "# Investigation").unwrap();
+
+        // Combined discovery should find reverse files too
+        let found = find_existing_ralph_files(dir.path());
+        assert_eq!(found.len(), 2);
+        assert!(found.iter().any(|p| p.ends_with(QUESTION_FILE)));
+        assert!(found.iter().any(|p| p.ends_with(INVESTIGATION_FILE)));
+        assert!(any_ralph_files_exist(dir.path()));
+    }
+
+    #[test]
+    fn test_find_existing_ralph_files_both_modes() {
+        let dir = create_temp_dir();
+
+        // Create both forward and reverse mode files
+        fs::write(dir.path().join(SPEC_FILE), "# Spec").unwrap();
+        fs::write(dir.path().join(QUESTION_FILE), "# Question").unwrap();
+
+        // Combined discovery should find both
+        let found = find_existing_ralph_files(dir.path());
+        assert_eq!(found.len(), 2);
+        assert!(found.iter().any(|p| p.ends_with(SPEC_FILE)));
+        assert!(found.iter().any(|p| p.ends_with(QUESTION_FILE)));
     }
 
     // Archivable reverse files tests
