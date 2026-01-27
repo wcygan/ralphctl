@@ -35,6 +35,9 @@ enum Command {
         force: bool,
     },
 
+    /// Interactive interview to create SPEC.md and IMPLEMENTATION_PLAN.md
+    Interview,
+
     /// Execute the ralph loop until done or blocked
     Run {
         /// Maximum iterations before stopping
@@ -64,6 +67,9 @@ async fn main() -> Result<()> {
     match cli.command {
         Command::Init { force } => {
             init_cmd(force).await?;
+        }
+        Command::Interview => {
+            interview_cmd()?;
         }
         Command::Run {
             max_iterations,
@@ -169,6 +175,69 @@ fn run_cmd(max_iterations: u32, _pause: bool) -> Result<()> {
     Ok(())
 }
 
+fn interview_cmd() -> Result<()> {
+    use std::process::Command;
+
+    if !cli::claude_exists() {
+        error::die("claude not found in PATH");
+    }
+
+    const INTERVIEW_PROMPT: &str = r#"You are helping a user define their project for an autonomous development loop.
+
+Your goal is to create two files:
+1. SPEC.md - A clear project specification
+2. IMPLEMENTATION_PLAN.md - A task list with checkboxes
+
+## Interview Process
+
+First, ask the user: "What would you like to build?"
+
+Then conduct an in-depth interview using the AskUserQuestion tool. Ask about:
+- Core functionality and features
+- Technical constraints (language, framework, dependencies)
+- User experience and interfaces
+- Edge cases and error handling
+- Success criteria and acceptance tests
+- Concerns and tradeoffs they've considered
+
+Be thorough. Ask follow-up questions. Don't accept vague answers - dig deeper.
+
+Continue interviewing until you have enough detail to write a complete specification.
+
+## Output
+
+When the interview is complete:
+1. Write SPEC.md with clear requirements and architecture
+2. Write IMPLEMENTATION_PLAN.md with phased tasks as checkboxes (- [ ] format)
+
+Make the tasks specific and atomic - each should be completable in one focused session."#;
+
+    // Launch claude in interactive mode with the interview prompt
+    let status = Command::new("claude")
+        .arg("--allowedTools")
+        .arg("AskUserQuestion,Read,Glob,Grep,Write,Edit")
+        .arg("-p")
+        .arg(INTERVIEW_PROMPT)
+        .status()
+        .inspect_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                error::die("claude not found in PATH");
+            }
+        })?;
+
+    if !status.success() {
+        error::die(&format!(
+            "claude exited with code {}",
+            status.code().unwrap_or(-1)
+        ));
+    }
+
+    println!();
+    println!("Interview complete. Run 'ralphctl run' to start the development loop.");
+
+    Ok(())
+}
+
 async fn init_cmd(force: bool) -> Result<()> {
     // Step 1: Verify claude CLI is in PATH
     if !cli::claude_exists() {
@@ -201,6 +270,11 @@ async fn init_cmd(force: bool) -> Result<()> {
     }
 
     println!("Initialized ralph loop files.");
+    println!();
+    println!("Next steps:");
+    println!("  1. Run 'ralphctl interview' to define your project interactively, or");
+    println!("     manually edit SPEC.md and IMPLEMENTATION_PLAN.md");
+    println!("  2. Run 'ralphctl run' to start the autonomous development loop");
 
     Ok(())
 }
