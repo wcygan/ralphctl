@@ -21,7 +21,7 @@ const INIT_FILES: &[&str] = &[
 #[derive(Parser)]
 #[command(name = "ralphctl")]
 #[command(version, about = "Manage Ralph Loop workflows")]
-#[command(after_help = "Workflow: init → interview → run → verify → clean")]
+#[command(after_help = "Workflow: init → interview → run → clean")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
