@@ -65,8 +65,8 @@
 
 - [x] Add Cross.toml configuration for cross-rs
 - [x] Add GitHub Actions release workflow triggered by `v*` tags
-- [ ] Configure release matrix for macOS (arm64, x86_64) and Linux (x86_64, arm64)
-- [ ] Test cross-compilation locally for at least one non-native target
+- [x] Configure release matrix for macOS (arm64, x86_64) and Linux (x86_64, arm64)
+- [x] Test cross-compilation locally for at least one non-native target
 
 ## Phase 8: Documentation & Templates
 
