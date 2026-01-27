@@ -64,7 +64,7 @@
 ## Phase 7: Distribution
 
 - [x] Add Cross.toml configuration for cross-rs
-- [ ] Add GitHub Actions release workflow triggered by `v*` tags
+- [x] Add GitHub Actions release workflow triggered by `v*` tags
 - [ ] Configure release matrix for macOS (arm64, x86_64) and Linux (x86_64, arm64)
 - [ ] Test cross-compilation locally for at least one non-native target
 
