@@ -42,7 +42,7 @@
 
 ## Phase 5: Run Command Core
 
-- [ ] Implement PROMPT.md file reading
+- [x] Implement PROMPT.md file reading
 - [ ] Implement subprocess spawning for `claude -p` with stdin piping
 - [ ] Implement real-time stdout/stderr streaming (pass-through)
 - [ ] Implement iteration header printing (`=== Iteration N starting ===`)
