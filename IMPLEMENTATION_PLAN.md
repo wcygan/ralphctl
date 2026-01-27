@@ -38,7 +38,7 @@
 - [x] Implement `init` subcommand that writes SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md
 - [x] Add `--force` flag to overwrite existing files
 - [x] Add file existence check that errors without --force
-- [ ] Write integration tests for init command with mock HTTP responses
+- [x] Write integration tests for init command with mock HTTP responses
 
 ## Phase 5: Run Command Core
 
