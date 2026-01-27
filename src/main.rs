@@ -67,6 +67,13 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
+
+    /// Archive current SPEC.md and IMPLEMENTATION_PLAN.md, then reset to blank
+    Archive {
+        /// Skip confirmation prompt
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[tokio::main]
@@ -92,6 +99,9 @@ async fn main() -> Result<()> {
         }
         Command::Clean { force } => {
             clean_cmd(force)?;
+        }
+        Command::Archive { force } => {
+            archive_cmd(force)?;
         }
     }
 
@@ -145,6 +155,105 @@ fn clean_cmd(force: bool) -> Result<()> {
         file_count,
         if file_count == 1 { "" } else { "s" }
     );
+
+    Ok(())
+}
+
+fn archive_cmd(force: bool) -> Result<()> {
+    let cwd = Path::new(".");
+    let archivable_files = files::find_archivable_files(cwd);
+
+    if archivable_files.is_empty() {
+        println!("No archivable files found.");
+        return Ok(());
+    }
+
+    let file_count = archivable_files.len();
+
+    if !force {
+        eprint!(
+            "Archive {} file{}? [y/N] ",
+            file_count,
+            if file_count == 1 { "" } else { "s" }
+        );
+        io::stderr().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+
+        let answer = input.trim().to_lowercase();
+        if answer != "y" && answer != "yes" {
+            std::process::exit(error::exit::ERROR);
+        }
+    }
+
+    // Ensure .ralphctl is in .gitignore
+    update_gitignore(cwd)?;
+
+    // Create timestamped archive directory
+    let timestamp = generate_timestamp();
+    let archive_dir = files::archive_base_dir(cwd).join(&timestamp);
+    fs::create_dir_all(&archive_dir)?;
+
+    // Copy files to archive
+    for path in &archivable_files {
+        let filename = path.file_name().unwrap();
+        let dest = archive_dir.join(filename);
+        fs::copy(path, dest)?;
+    }
+
+    // Reset original files to blank templates
+    for path in &archivable_files {
+        let blank = generate_blank_content(path);
+        fs::write(path, blank)?;
+    }
+
+    println!(
+        "Archived {} file{} to {}",
+        file_count,
+        if file_count == 1 { "" } else { "s" },
+        archive_dir.display()
+    );
+
+    Ok(())
+}
+
+/// Generate a filesystem-safe timestamp for archive directories.
+fn generate_timestamp() -> String {
+    chrono::Local::now().format("%Y-%m-%dT%H-%M-%S").to_string()
+}
+
+/// Generate blank content for a given file.
+fn generate_blank_content(path: &Path) -> &'static str {
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    match filename {
+        files::SPEC_FILE => "# Specification\n\n",
+        files::IMPLEMENTATION_PLAN_FILE => "# Implementation Plan\n\n",
+        _ => "",
+    }
+}
+
+/// Update .gitignore to include .ralphctl if not already present.
+fn update_gitignore(dir: &Path) -> Result<()> {
+    let gitignore_path = dir.join(".gitignore");
+    let entry = files::RALPHCTL_DIR;
+
+    if gitignore_path.exists() {
+        let content = fs::read_to_string(&gitignore_path)?;
+        // Check if entry already exists (as a complete line)
+        if content.lines().any(|line| line.trim() == entry) {
+            return Ok(());
+        }
+        // Append entry with newline handling
+        let suffix = if content.ends_with('\n') || content.is_empty() {
+            format!("{}\n", entry)
+        } else {
+            format!("\n{}\n", entry)
+        };
+        fs::write(&gitignore_path, content + &suffix)?;
+    } else {
+        fs::write(&gitignore_path, format!("{}\n", entry))?;
+    }
 
     Ok(())
 }
@@ -351,14 +460,11 @@ NEVER use paths from other context (like ~/.claude/CLAUDE.md). The path above is
         cmd.arg("--model").arg(m);
     }
 
-    let status = cmd
-        .arg(INITIAL_PROMPT)
-        .status()
-        .inspect_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                error::die("claude not found in PATH");
-            }
-        })?;
+    let status = cmd.arg(INITIAL_PROMPT).status().inspect_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            error::die("claude not found in PATH");
+        }
+    })?;
 
     if !status.success() {
         error::die(&format!(
