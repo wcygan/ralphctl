@@ -824,11 +824,17 @@ async fn reverse_cmd(
             reverse::ReverseSignal::Found(summary) => {
                 println!("=== Investigation complete ===");
                 println!("Found: {}", summary);
+                println!();
+                println!(
+                    "Review FINDINGS.md for the complete answer with evidence and recommendations."
+                );
                 return Ok(());
             }
             reverse::ReverseSignal::Inconclusive(reason) => {
                 eprintln!("=== Investigation inconclusive ===");
                 eprintln!("{}", reason);
+                eprintln!();
+                eprintln!("Review FINDINGS.md for details on what was explored and why it's inconclusive.");
                 std::process::exit(error::exit::INCONCLUSIVE);
             }
             reverse::ReverseSignal::Continue => {

@@ -1,2 +1,12 @@
 /target
+
+# Ralph loop files (workflow state, not source code)
 ralph.log
+SPEC.md
+IMPLEMENTATION_PLAN.md
+PROMPT.md
+QUESTION.md
+INVESTIGATION.md
+FINDINGS.md
+REVERSE_PROMPT.md
+.ralphctl/
