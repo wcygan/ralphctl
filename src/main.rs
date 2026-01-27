@@ -28,18 +28,21 @@ WORKFLOW:
   init      → Scaffold template files (SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md)
   interview → AI-guided session to fill out SPEC.md and IMPLEMENTATION_PLAN.md
   run       → Execute the autonomous development loop
+  reverse   → Investigate a codebase to answer a question
   status    → Check progress at any time
   archive   → Save completed work and reset for next project
   clean     → Remove all ralph files when done
 
 EXAMPLES:
-  ralphctl init                  # Start a new ralph loop
-  ralphctl interview             # Define your project interactively
-  ralphctl run                   # Execute until done or blocked
-  ralphctl run --pause           # Step through iterations manually
-  ralphctl status                # Check task completion progress
-  ralphctl archive               # Save spec/plan and reset to blank
-  ralphctl fetch-latest-prompt   # Update PROMPT.md to latest version
+  ralphctl init                           # Start a new ralph loop
+  ralphctl interview                      # Define your project interactively
+  ralphctl run                            # Execute until done or blocked
+  ralphctl run --pause                    # Step through iterations manually
+  ralphctl reverse \"Why does auth fail?\"  # Investigate a question
+  ralphctl reverse --pause                # Step through investigation manually
+  ralphctl status                         # Check task completion progress
+  ralphctl archive                        # Save spec/plan and reset to blank
+  ralphctl fetch-latest-prompt            # Update PROMPT.md to latest version
 ")]
 struct Cli {
     #[command(subcommand)]
