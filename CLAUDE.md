@@ -11,10 +11,11 @@ Guidance for Claude Code when working with this repository.
 ## Build & Test
 
 ```bash
-cargo build                    # Build debug binary
-cargo test                     # Run all tests (127 tests)
-cargo clippy                   # Lint (must pass with no warnings)
-cargo fmt                      # Format code
+just check                     # Format check + clippy (CI parity)
+just test                      # Run all tests (127 tests)
+just ci                        # Full CI suite locally
+just fmt                       # Format code
+just all                       # Format, lint, test, build
 cargo run -- <command>         # Run with args
 ```
 

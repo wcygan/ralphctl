@@ -456,7 +456,11 @@ fn run_handles_large_prompt_with_fast_exit() {
     );
     fs::write(dir.path().join("PROMPT.md"), &large_prompt).unwrap();
     fs::write(dir.path().join("SPEC.md"), "# Spec").unwrap();
-    fs::write(dir.path().join("IMPLEMENTATION_PLAN.md"), "# Plan\n- [ ] Task").unwrap();
+    fs::write(
+        dir.path().join("IMPLEMENTATION_PLAN.md"),
+        "# Plan\n- [ ] Task",
+    )
+    .unwrap();
 
     let mock_output = "[[RALPH:DONE]]\n";
     let bin_dir = create_mock_claude(&dir, mock_output);

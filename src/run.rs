@@ -821,16 +821,16 @@ mod tests {
     fn test_detect_signal_similar_but_wrong_markers() {
         // Similar strings that should NOT match
         let cases = vec![
-            "[[RALPH:DONE ]]",        // Extra space before closing
-            "[[ RALPH:DONE]]",        // Extra space after opening
-            "[[RALPH: DONE]]",        // Space after colon
-            "[[RALPH:DONEE]]",        // Extra E
-            "[[RALPH:DON]]",          // Missing E
-            "[RALPH:DONE]",           // Single brackets
-            "[[RALPH:DONE]",          // Missing closing bracket
-            "[[RALPH:CONTINUE]",      // Missing closing bracket
-            "[[RALPH:CONTINUES]]",    // Extra S
-            "[[RALPH:CONT]]",         // Truncated
+            "[[RALPH:DONE ]]",     // Extra space before closing
+            "[[ RALPH:DONE]]",     // Extra space after opening
+            "[[RALPH: DONE]]",     // Space after colon
+            "[[RALPH:DONEE]]",     // Extra E
+            "[[RALPH:DON]]",       // Missing E
+            "[RALPH:DONE]",        // Single brackets
+            "[[RALPH:DONE]",       // Missing closing bracket
+            "[[RALPH:CONTINUE]",   // Missing closing bracket
+            "[[RALPH:CONTINUES]]", // Extra S
+            "[[RALPH:CONT]]",      // Truncated
         ];
 
         for case in cases {
