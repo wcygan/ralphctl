@@ -134,7 +134,7 @@
 - [x] Write integration test for `ralphctl reverse "question"` happy path
 - [x] Write integration test for `ralphctl reverse` without args (QUESTION.md exists)
 - [x] Write integration test for `ralphctl reverse` without args (creates template)
-- [ ] Write integration test for CONTINUE signal (loop continues)
+- [x] Write integration test for CONTINUE signal (loop continues)
 - [ ] Write integration test for FOUND signal termination
 - [ ] Write integration test for INCONCLUSIVE signal termination
 - [ ] Write integration test for BLOCKED signal termination
