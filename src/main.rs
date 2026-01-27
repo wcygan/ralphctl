@@ -38,6 +38,7 @@ EXAMPLES:
   ralphctl run --pause           # Step through iterations manually
   ralphctl status                # Check task completion progress
   ralphctl archive               # Save spec/plan and reset to blank
+  ralphctl fetch-latest-prompt   # Update PROMPT.md to latest version
 ")]
 struct Cli {
     #[command(subcommand)]
@@ -141,6 +142,20 @@ enum Command {
                       Runs: cargo install --git https://github.com/wcygan/ralphctl"
     )]
     Update,
+
+    /// Fetch the latest PROMPT.md from GitHub
+    #[command(
+        long_about = "Fetch the latest PROMPT.md from GitHub without affecting other files.\n\n\
+                      Use this when the Ralph Loop protocol has been updated with new control signals\n\
+                      or improved orchestration logic. Your SPEC.md and IMPLEMENTATION_PLAN.md remain untouched.",
+        after_help = "WHY USE THIS:\n\
+                      The PROMPT.md file contains the orchestration instructions for Claude, including\n\
+                      magic control signals like [[RALPH:DONE]] and [[RALPH:BLOCKED:<reason>]]. When\n\
+                      ralphctl is updated with new signals or improved prompting, running this command\n\
+                      ensures your local prompt stays current.\n\n\
+                      EXAMPLES:\n  ralphctl fetch-latest-prompt    # Download latest PROMPT.md"
+    )]
+    FetchLatestPrompt,
 }
 
 #[tokio::main]
@@ -172,6 +187,9 @@ async fn main() -> Result<()> {
         }
         Command::Update => {
             update_cmd()?;
+        }
+        Command::FetchLatestPrompt => {
+            fetch_latest_prompt_cmd().await?;
         }
     }
 
@@ -644,5 +662,12 @@ async fn init_cmd(force: bool) -> Result<()> {
     println!("     manually edit SPEC.md and IMPLEMENTATION_PLAN.md");
     println!("  2. Run 'ralphctl run' to start the autonomous development loop");
 
+    Ok(())
+}
+
+async fn fetch_latest_prompt_cmd() -> Result<()> {
+    let content = templates::get_template("PROMPT.md").await?;
+    fs::write("PROMPT.md", content)?;
+    println!("Updated PROMPT.md to latest version.");
     Ok(())
 }

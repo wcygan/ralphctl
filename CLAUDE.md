@@ -12,7 +12,7 @@ Guidance for Claude Code when working with this repository.
 
 ```bash
 just check                     # Format check + clippy (CI parity)
-just test                      # Run all tests (127 tests)
+just test                      # Run all tests (191 tests)
 just ci                        # Full CI suite locally
 just fmt                       # Format code
 just all                       # Format, lint, test, build
@@ -30,6 +30,7 @@ cargo run -- <command>         # Run with args
 | `archive` | Save spec/plan to `.ralphctl/archive/<timestamp>/`, reset to blank | `--force` |
 | `clean` | Remove ralph loop files | `--force` |
 | `update` | Install latest version from GitHub | — |
+| `fetch-latest-prompt` | Download latest PROMPT.md from GitHub | — |
 
 ## Dependencies
 
@@ -51,7 +52,7 @@ cargo run -- <command>         # Run with args
 
 | Module | Purpose | Key Functions |
 |--------|---------|---------------|
-| `main.rs` | CLI entry, command dispatch | `run_cmd()`, `interview_cmd()`, `init_cmd()` |
+| `main.rs` | CLI entry, command dispatch | `run_cmd()`, `interview_cmd()`, `init_cmd()`, `fetch_latest_prompt_cmd()` |
 | `cli.rs` | Claude binary detection | `claude_exists()` |
 | `run.rs` | Loop execution, subprocess spawning | `spawn_claude()`, `detect_signal()`, `detect_blocked_signal()`, `log_iteration()`, `prompt_continue()` |
 | `parser.rs` | Checkbox parsing for progress | `count_checkboxes()`, `render_progress_bar()` |
@@ -104,7 +105,9 @@ templates/           # Source templates for init
 tests/               # Integration tests
 ├── archive.rs
 ├── clean.rs
-└── init.rs
+├── fetch_latest_prompt.rs
+├── init.rs
+└── run.rs
 ```
 
 ## Ralph Workflow Files
@@ -113,7 +116,7 @@ tests/               # Integration tests
 |------|---------|------------|
 | `SPEC.md` | Project specification | init, interview |
 | `IMPLEMENTATION_PLAN.md` | Task list with checkboxes | init, interview |
-| `PROMPT.md` | Orchestration prompt piped to Claude | init |
+| `PROMPT.md` | Orchestration prompt piped to Claude | init, fetch-latest-prompt |
 | `ralph.log` | Iteration output log | run |
 | `.ralphctl/archive/<timestamp>/` | Archived specs and plans | archive |
 

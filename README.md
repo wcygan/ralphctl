@@ -166,6 +166,16 @@ ralphctl update
 
 Runs `cargo install --git https://github.com/wcygan/ralphctl` to fetch and compile the latest release.
 
+### `ralphctl fetch-latest-prompt`
+
+Fetch the latest PROMPT.md from GitHub without affecting other files.
+
+```bash
+ralphctl fetch-latest-prompt
+```
+
+Downloads the latest orchestration prompt from GitHub, preserving your SPEC.md and IMPLEMENTATION_PLAN.md. Use this when ralphctl is updated with new control signals or improved prompting logic.
+
 ## How It Works
 
 The Ralph Loop is an autonomous development workflow:

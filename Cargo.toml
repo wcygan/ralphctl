@@ -1,6 +1,6 @@
 [package]
 name = "ralphctl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "A command-line tool for managing Ralph Loop workflows"
 authors = ["Will Cygan"]
