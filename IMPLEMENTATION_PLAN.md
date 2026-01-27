@@ -74,7 +74,7 @@
 - [x] Create templates/IMPLEMENTATION_PLAN.md with section headers only
 - [x] Create templates/PROMPT.md with full ralph orchestration prompt
 - [x] Write README.md with installation instructions and usage examples
-- [ ] Polish --help text in clap with clear descriptions and examples
+- [x] Polish --help text in clap with clear descriptions and examples
 - [ ] Create CHANGELOG.md for v0.1.0 release
 
 ---
