@@ -1,7 +1,66 @@
 use anyhow::Result;
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "ralphctl")]
+#[command(version, about = "Manage Ralph Loop workflows")]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Initialize ralph loop files from templates
+    Init {
+        /// Overwrite existing files without prompting
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Execute the ralph loop until done or blocked
+    Run {
+        /// Maximum iterations before stopping
+        #[arg(long, default_value = "50")]
+        max_iterations: u32,
+
+        /// Prompt for confirmation before each iteration
+        #[arg(long)]
+        pause: bool,
+    },
+
+    /// Show ralph loop progress
+    Status,
+
+    /// Remove ralph loop files
+    Clean {
+        /// Skip confirmation prompt
+        #[arg(long)]
+        force: bool,
+    },
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("ralphctl v{}", env!("CARGO_PKG_VERSION"));
+    let cli = Cli::parse();
+
+    match cli.command {
+        Command::Init { force } => {
+            println!("init (force={})", force);
+        }
+        Command::Run {
+            max_iterations,
+            pause,
+        } => {
+            println!("run (max_iterations={}, pause={})", max_iterations, pause);
+        }
+        Command::Status => {
+            println!("status");
+        }
+        Command::Clean { force } => {
+            println!("clean (force={})", force);
+        }
+    }
+
     Ok(())
 }
