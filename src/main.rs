@@ -133,21 +133,38 @@ fn clean_cmd(force: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_cmd(max_iterations: u32, pause: bool) -> Result<()> {
+fn run_cmd(max_iterations: u32, _pause: bool) -> Result<()> {
     // Step 1: Validate required files exist
     run::validate_required_files()?;
 
     // Step 2: Read PROMPT.md
     let prompt = run::read_prompt()?;
 
-    // TODO: Implement iteration loop with subprocess spawning
-    // For now, just confirm we can read the prompt
-    println!(
-        "Ready to run (max_iterations={}, pause={}, prompt_len={})",
-        max_iterations,
-        pause,
-        prompt.len()
-    );
+    // Step 3: Run iteration loop
+    // TODO: Remove allow when magic string detection is implemented
+    #[allow(clippy::never_loop)]
+    for iteration in 1..=max_iterations {
+        // Print iteration header
+        run::print_iteration_header(iteration);
+
+        // Spawn claude subprocess
+        let result = run::spawn_claude(&prompt)?;
+
+        // TODO: Check for magic strings (RALPH:DONE, RALPH:BLOCKED)
+        // TODO: Log iteration to ralph.log
+        // TODO: Handle --pause flag
+
+        // For now, exit after first iteration if claude exited with error
+        if !result.success {
+            error::die(&format!(
+                "claude exited with code {}",
+                result.exit_code.unwrap_or(-1)
+            ));
+        }
+
+        // TODO: Remove this break when magic string detection is implemented
+        break;
+    }
 
     Ok(())
 }

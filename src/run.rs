@@ -17,6 +17,18 @@ const REQUIRED_FILES: &[&str] = &[
     files::IMPLEMENTATION_PLAN_FILE,
 ];
 
+/// Format the iteration header string.
+///
+/// Format: `=== Iteration N starting ===`
+pub fn format_iteration_header(iteration: u32) -> String {
+    format!("=== Iteration {} starting ===", iteration)
+}
+
+/// Print the iteration header to stdout.
+pub fn print_iteration_header(iteration: u32) {
+    println!("{}", format_iteration_header(iteration));
+}
+
 /// Validate that all required files exist before starting the loop.
 pub fn validate_required_files() -> Result<()> {
     let cwd = Path::new(".");
@@ -258,6 +270,16 @@ mod tests {
     fn test_stream_and_capture_empty_pipe() {
         let captured = stream_and_capture::<std::io::Empty, Vec<u8>>(None, Vec::new());
         assert_eq!(captured, "");
+    }
+
+    #[test]
+    fn test_format_iteration_header() {
+        assert_eq!(format_iteration_header(1), "=== Iteration 1 starting ===");
+        assert_eq!(format_iteration_header(42), "=== Iteration 42 starting ===");
+        assert_eq!(
+            format_iteration_header(100),
+            "=== Iteration 100 starting ==="
+        );
     }
 
     #[test]
