@@ -20,8 +20,25 @@ const INIT_FILES: &[&str] = &[
 
 #[derive(Parser)]
 #[command(name = "ralphctl")]
-#[command(version, about = "Manage Ralph Loop workflows")]
-#[command(after_help = "Workflow: init → interview → run → clean")]
+#[command(version)]
+#[command(about = "Manage Ralph Loop workflows—autonomous development sessions driven by Claude")]
+#[command(after_help = "\
+WORKFLOW:
+  init      → Scaffold template files (SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md)
+  interview → AI-guided session to fill out SPEC.md and IMPLEMENTATION_PLAN.md
+  run       → Execute the autonomous development loop
+  status    → Check progress at any time
+  archive   → Save completed work and reset for next project
+  clean     → Remove all ralph files when done
+
+EXAMPLES:
+  ralphctl init                  # Start a new ralph loop
+  ralphctl interview             # Define your project interactively
+  ralphctl run                   # Execute until done or blocked
+  ralphctl run --pause           # Step through iterations manually
+  ralphctl status                # Check task completion progress
+  ralphctl archive               # Save spec/plan and reset to blank
+")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -29,53 +46,100 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Initialize ralph loop files from templates
+    /// Scaffold ralph loop files from GitHub templates
+    #[command(
+        long_about = "Fetch template files from GitHub and create them in the current directory.\n\n\
+                      Creates: SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md\n\n\
+                      Templates are cached locally for offline use. Requires the claude CLI to be installed.",
+        after_help = "EXAMPLES:\n  ralphctl init           # Create files (fails if they exist)\n  ralphctl init --force   # Overwrite existing files"
+    )]
     Init {
         /// Overwrite existing files without prompting
         #[arg(long)]
         force: bool,
     },
 
-    /// Interactive interview to create SPEC.md and IMPLEMENTATION_PLAN.md
+    /// AI-guided interview to create SPEC.md and IMPLEMENTATION_PLAN.md
+    #[command(
+        long_about = "Launch an interactive Claude session to define your project.\n\n\
+                      Claude will ask questions about your project's purpose, requirements,\n\
+                      architecture, and scope, then generate SPEC.md and IMPLEMENTATION_PLAN.md.",
+        after_help = "EXAMPLES:\n  ralphctl interview              # Use default model\n  ralphctl interview --model opus # Use a specific model"
+    )]
     Interview {
-        /// Model to use (e.g., 'sonnet', 'opus', or full model name)
-        #[arg(long)]
+        /// Claude model to use (e.g., 'sonnet', 'opus', or full model name)
+        #[arg(long, value_name = "MODEL")]
         model: Option<String>,
     },
 
     /// Execute the ralph loop until done or blocked
+    #[command(
+        long_about = "Run the autonomous development loop by piping PROMPT.md to claude.\n\n\
+                      Each iteration: Claude reads state files, implements one task, marks it complete.\n\
+                      Loop ends when [[RALPH:DONE]] or [[RALPH:BLOCKED:<reason>]] is detected.",
+        after_help = "EXIT CODES:\n  \
+                      0   Success (RALPH:DONE detected)\n  \
+                      1   Error or RALPH:BLOCKED detected\n  \
+                      2   Max iterations reached\n  \
+                      130 Interrupted (Ctrl+C)\n\n\
+                      EXAMPLES:\n  \
+                      ralphctl run                      # Run up to 50 iterations\n  \
+                      ralphctl run --max-iterations 10  # Limit to 10 iterations\n  \
+                      ralphctl run --pause              # Confirm before each iteration\n  \
+                      ralphctl run --model opus         # Use a specific model"
+    )]
     Run {
         /// Maximum iterations before stopping
-        #[arg(long, default_value = "50")]
+        #[arg(long, default_value = "50", value_name = "N")]
         max_iterations: u32,
 
         /// Prompt for confirmation before each iteration
         #[arg(long)]
         pause: bool,
 
-        /// Model to use (e.g., 'sonnet', 'opus', or full model name)
-        #[arg(long)]
+        /// Claude model to use (e.g., 'sonnet', 'opus', or full model name)
+        #[arg(long, value_name = "MODEL")]
         model: Option<String>,
     },
 
-    /// Show ralph loop progress
+    /// Show ralph loop progress from IMPLEMENTATION_PLAN.md
+    #[command(
+        long_about = "Parse IMPLEMENTATION_PLAN.md and display a progress bar showing task completion.\n\n\
+                      Counts all checkboxes (- [ ] and - [x]) to calculate percentage complete.",
+        after_help = "OUTPUT FORMAT:\n  [████████░░░░] 60% (12/20 tasks)"
+    )]
     Status,
 
     /// Remove ralph loop files
+    #[command(
+        long_about = "Delete all ralph-related files from the current directory.\n\n\
+                      Files removed: SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md, ralph.log",
+        after_help = "EXAMPLES:\n  ralphctl clean          # Prompt for confirmation\n  ralphctl clean --force  # Delete without prompting"
+    )]
     Clean {
-        /// Skip confirmation prompt
+        /// Delete files without confirmation prompt
         #[arg(long)]
         force: bool,
     },
 
-    /// Archive current SPEC.md and IMPLEMENTATION_PLAN.md, then reset to blank
+    /// Archive SPEC.md and IMPLEMENTATION_PLAN.md, then reset to blank
+    #[command(
+        long_about = "Save the current SPEC.md and IMPLEMENTATION_PLAN.md to a timestamped archive\n\
+                      directory (.ralphctl/archive/<timestamp>/), then reset them to blank templates.\n\n\
+                      Useful for starting a new project while preserving completed work.",
+        after_help = "EXAMPLES:\n  ralphctl archive          # Prompt for confirmation\n  ralphctl archive --force  # Archive without prompting"
+    )]
     Archive {
-        /// Skip confirmation prompt
+        /// Archive files without confirmation prompt
         #[arg(long)]
         force: bool,
     },
 
     /// Update ralphctl to the latest version from GitHub
+    #[command(
+        long_about = "Install the latest version of ralphctl from GitHub using cargo.\n\n\
+                      Runs: cargo install --git https://github.com/wcygan/ralphctl"
+    )]
     Update,
 }
 
