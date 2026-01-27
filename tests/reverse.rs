@@ -543,3 +543,233 @@ fn reverse_continue_shows_iteration_headers_for_all_iterations() {
         "Should show iteration 3 header"
     );
 }
+
+// ==================== FOUND Signal Tests ====================
+
+#[test]
+fn reverse_found_signal_exits_with_success() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Mock claude outputs FOUND signal
+    let mock_output = "Investigating the authentication flow...\n\
+                       Examined src/auth.rs, found the issue.\n\
+                       [[RALPH:FOUND:Bug in session token validation at auth.rs:142]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does authentication fail?")
+        .arg("--max-iterations")
+        .arg("10")
+        .assert()
+        .success() // Exit code 0
+        .stdout(predicate::str::contains("=== Investigation complete ==="))
+        .stdout(predicate::str::contains(
+            "Bug in session token validation at auth.rs:142",
+        ));
+}
+
+#[test]
+fn reverse_found_signal_stops_loop_immediately() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // FOUND signal should stop on first iteration, even with high max-iterations
+    let mock_output = "[[RALPH:FOUND:Answer found on first try]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    let output = ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Quick question")
+        .arg("--max-iterations")
+        .arg("100") // High limit that should never be reached
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+
+    // Should only have one iteration
+    assert!(
+        stdout.contains("=== Iteration 1 starting ==="),
+        "Should show iteration 1 header"
+    );
+    assert!(
+        !stdout.contains("=== Iteration 2 starting ==="),
+        "Should NOT start iteration 2 after FOUND"
+    );
+}
+
+#[test]
+fn reverse_found_signal_displays_summary_message() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let summary = "The cache invalidation bug is caused by a race condition in cache.rs:87";
+    let mock_output = format!("Investigation work...\n[[RALPH:FOUND:{}]]\n", summary);
+    let bin_dir = create_mock_claude(&dir, &mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Why does the cache fail?")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found:"))
+        .stdout(predicate::str::contains(summary));
+}
+
+#[test]
+fn reverse_found_signal_with_special_characters_in_summary() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Summary with special characters that might cause parsing issues
+    let mock_output =
+        "[[RALPH:FOUND:Error in `fn validate<T>()` at line 42 - missing trait bound]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Type error investigation")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("validate<T>()"))
+        .stdout(predicate::str::contains("missing trait bound"));
+}
+
+#[test]
+fn reverse_found_signal_with_whitespace() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // FOUND signal with leading/trailing whitespace on its line
+    let mock_output = "Investigating...\n  [[RALPH:FOUND:The answer is 42]]  \n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("What is the answer?")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("The answer is 42"));
+}
+
+#[test]
+fn reverse_found_signal_logs_to_ralph_log() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output = "Investigation output before signal.\n[[RALPH:FOUND:Logged finding]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Log test question")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success();
+
+    // Verify ralph.log was created and contains the output
+    let log_path = dir.path().join("ralph.log");
+    assert!(log_path.exists(), "ralph.log should be created");
+
+    let log_content = fs::read_to_string(&log_path).unwrap();
+    assert!(
+        log_content.contains("Investigation output before signal"),
+        "Log should contain claude output"
+    );
+    assert!(
+        log_content.contains("[[RALPH:FOUND:Logged finding]]"),
+        "Log should contain the FOUND signal"
+    );
+}
+
+#[test]
+fn reverse_found_signal_takes_priority_over_continue() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Both CONTINUE and FOUND in output - FOUND should win per priority rules
+    // Priority: BLOCKED → FOUND → INCONCLUSIVE → CONTINUE
+    let mock_output = "Working...\n[[RALPH:CONTINUE]]\nMore work...\n[[RALPH:FOUND:Found it]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Priority test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success() // FOUND wins, so exit 0
+        .stdout(predicate::str::contains("Found it"));
+}
+
+#[test]
+fn reverse_found_signal_with_colon_in_summary() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Summary containing colons (should not break parsing)
+    let mock_output = "[[RALPH:FOUND:Root cause: missing null check in parse_config(): line 55]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Colon test")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Root cause: missing null check"))
+        .stdout(predicate::str::contains("parse_config()"));
+}
