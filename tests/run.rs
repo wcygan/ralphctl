@@ -417,3 +417,58 @@ fn run_blocked_with_special_characters() {
             "blocked: can't find file: /path/to/missing.txt",
         ));
 }
+
+#[test]
+fn run_handles_mock_that_ignores_stdin() {
+    // Test that ralphctl handles subprocesses that don't read stdin (triggers EPIPE)
+    // This is what caused the original CI failure - mock scripts using printf
+    // exit before reading the piped PROMPT.md content
+    let dir = temp_dir();
+    create_ralph_files(&dir);
+
+    // Create mock that outputs DONE without reading stdin
+    let mock_output = "[[RALPH:DONE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Loop complete"));
+}
+
+#[test]
+fn run_handles_large_prompt_with_fast_exit() {
+    // Stress test: large PROMPT.md with mock that exits immediately
+    // This maximizes the chance of EPIPE occurring
+    let dir = temp_dir();
+
+    // Create a large prompt file
+    let large_prompt = format!(
+        "# Large Prompt\n\n{}\n",
+        "This is a line of prompt content.\n".repeat(1000)
+    );
+    fs::write(dir.path().join("PROMPT.md"), &large_prompt).unwrap();
+    fs::write(dir.path().join("SPEC.md"), "# Spec").unwrap();
+    fs::write(dir.path().join("IMPLEMENTATION_PLAN.md"), "# Plan\n- [ ] Task").unwrap();
+
+    let mock_output = "[[RALPH:DONE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .arg("run")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success();
+}

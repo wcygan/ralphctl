@@ -265,8 +265,13 @@ pub fn spawn_claude(
     })?;
 
     // Write prompt to stdin, then drop to signal EOF
+    // Ignore BrokenPipe errors - the child may exit before reading all input
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(prompt.as_bytes())?;
+        if let Err(e) = stdin.write_all(prompt.as_bytes()) {
+            if e.kind() != io::ErrorKind::BrokenPipe {
+                return Err(e.into());
+            }
+        }
         // stdin is dropped here, closing the pipe
     }
 
@@ -764,5 +769,68 @@ mod tests {
         let action = NoSignalAction::Stop;
         let debug_str = format!("{:?}", action);
         assert_eq!(debug_str, "Stop");
+    }
+
+    #[test]
+    fn test_broken_pipe_handled_gracefully() {
+        // Simulate a subprocess that exits immediately without reading stdin
+        // This triggers EPIPE when we try to write to its stdin
+        let mut child = Command::new("true") // exits immediately with success
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn true");
+
+        // Give the child time to exit
+        let _ = child.wait();
+
+        // Now try writing to the closed stdin - this should produce BrokenPipe
+        if let Some(mut stdin) = child.stdin.take() {
+            let large_input = "x".repeat(65536); // Large enough to trigger EPIPE
+            let result = stdin.write_all(large_input.as_bytes());
+
+            // The write should fail with BrokenPipe (or succeed if buffered)
+            if let Err(e) = result {
+                assert_eq!(
+                    e.kind(),
+                    io::ErrorKind::BrokenPipe,
+                    "Expected BrokenPipe error, got: {:?}",
+                    e.kind()
+                );
+            }
+            // If it succeeds (due to buffering), that's also acceptable
+        }
+    }
+
+    #[test]
+    fn test_subprocess_exits_before_reading_all_stdin() {
+        // Test the pattern used by the mock claude script: exits without reading stdin
+        // Use 'true' which reads nothing and exits immediately with success
+        let mut child = Command::new("true")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn true");
+
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take();
+
+        // Wait for child to exit first
+        let status = child.wait().expect("Failed to wait on child");
+        assert!(status.success());
+
+        // Now write to the closed stdin - should trigger EPIPE
+        if let Some(mut stdin) = stdin {
+            let large_input = "test data\n".repeat(10000);
+            // This may error with BrokenPipe - both outcomes are acceptable
+            let result = stdin.write_all(large_input.as_bytes());
+            if let Err(e) = result {
+                assert_eq!(e.kind(), io::ErrorKind::BrokenPipe);
+            }
+        }
+
+        // Capture stdout (should be empty since 'true' produces no output)
+        let captured = stream_and_capture(stdout, Vec::new());
+        assert!(captured.is_empty());
     }
 }
