@@ -139,7 +139,7 @@
 - [x] Write integration test for INCONCLUSIVE signal termination
 - [x] Write integration test for BLOCKED signal termination
 - [x] Write integration test for max iterations reached
-- [ ] Write integration test for --pause flag in reverse mode
+- [x] Write integration test for --pause flag in reverse mode
 
 ## Phase 16: Documentation Update
 
