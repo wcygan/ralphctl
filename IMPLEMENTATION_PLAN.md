@@ -112,7 +112,7 @@
 
 ## Phase 13: Reverse Mode CLI
 
-- [ ] Add `Command::Reverse` variant to CLI with question argument, --max-iterations (default 100), --pause, --model flags
+- [x] Add `Command::Reverse` variant to CLI with question argument, --max-iterations (default 100), --pause, --model flags
 - [ ] Implement `reverse_cmd()` function in `main.rs`
 - [ ] Implement question setup logic (arg provided vs QUESTION.md exists vs create template)
 - [ ] Implement reverse iteration loop using `spawn_claude()` with REVERSE_PROMPT.md
