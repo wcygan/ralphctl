@@ -125,7 +125,7 @@
 - [x] Update `clean_cmd()` to handle reverse files (same confirmation UX)
 - [x] Update `find_archivable_files()` to include QUESTION.md, INVESTIGATION.md, FINDINGS.md
 - [x] Update `archive_cmd()` to handle reverse files (archive and reset)
-- [ ] Update `generate_blank_content()` for QUESTION.md reset
+- [x] Update `generate_blank_content()` for QUESTION.md reset
 - [ ] Write integration tests for clean command with reverse files
 - [ ] Write integration tests for archive command with reverse files
 
