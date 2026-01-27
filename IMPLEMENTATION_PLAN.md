@@ -144,7 +144,7 @@
 ## Phase 16: Documentation Update
 
 - [x] Update README.md with Reverse Mode section and examples
-- [ ] Add reverse mode examples to CLI --help text
+- [x] Add reverse mode examples to CLI --help text
 - [ ] Update CHANGELOG.md with reverse mode feature
 
 ---
