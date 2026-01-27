@@ -97,10 +97,10 @@
 
 ## Phase 11: Reverse Mode Question Handling
 
-- [ ] Implement `read_question()` function in `reverse.rs`
-- [ ] Implement `create_question_template()` function with minimal placeholder content
-- [ ] Implement `write_question()` function for CLI argument → file
-- [ ] Write unit tests for question reading and template creation
+- [x] Implement `read_question()` function in `reverse.rs`
+- [x] Implement `create_question_template()` function with minimal placeholder content
+- [x] Implement `write_question()` function for CLI argument → file
+- [x] Write unit tests for question reading and template creation
 
 ## Phase 12: Reverse Mode Template
 
