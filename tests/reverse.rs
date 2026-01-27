@@ -1516,3 +1516,184 @@ fn reverse_max_iterations_with_no_signal_prompts_then_stops() {
         .success()
         .stdout(predicate::str::contains("Stopped by user"));
 }
+
+// ==================== Pause Mode Tests ====================
+
+#[test]
+fn reverse_pause_flag_prompts_before_each_iteration() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Mock claude that outputs CONTINUE signal to test multiple iterations
+    let mock_output = "Investigating hypothesis...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // With --pause, each iteration prompts "Continue? [Y/n]"
+    // Send "y\n" twice to continue for 2 iterations, then we'll hit max
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Test pause mode")
+        .arg("--pause")
+        .arg("--max-iterations")
+        .arg("2")
+        .write_stdin("y\ny\n") // Continue twice
+        .assert()
+        .code(2) // MAX_ITERATIONS reached
+        .stderr(predicate::str::contains("reached max iterations"));
+
+    // Verify both iterations ran
+    let log_content = fs::read_to_string(dir.path().join("ralph.log")).unwrap();
+    assert!(
+        log_content.contains("=== Iteration 1 starting ==="),
+        "Iteration 1 should be logged"
+    );
+    assert!(
+        log_content.contains("=== Iteration 2 starting ==="),
+        "Iteration 2 should be logged"
+    );
+}
+
+#[test]
+fn reverse_pause_flag_stops_when_user_declines() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output = "Investigating...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // With --pause, user declines to continue after first iteration
+    // Note: The pause prompt happens BEFORE the iteration runs (right after header),
+    // so if user declines on the first prompt, no iteration actually executes
+    // and ralph.log might not even be created
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Test pause decline")
+        .arg("--pause")
+        .arg("--max-iterations")
+        .arg("10") // High limit that won't be reached
+        .write_stdin("n\n") // Decline to continue before first iteration runs
+        .assert()
+        .success() // User-initiated stop is success
+        .stdout(predicate::str::contains("Stopped by user"))
+        .stdout(predicate::str::contains("=== Iteration 1 starting ===")); // Header printed before prompt
+}
+
+#[test]
+fn reverse_pause_flag_with_q_to_quit() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output = "Working...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // User enters 'q' to quit
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Test q to quit")
+        .arg("--pause")
+        .arg("--max-iterations")
+        .arg("5")
+        .write_stdin("q\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Stopped by user"));
+}
+
+#[test]
+fn reverse_pause_flag_empty_input_continues() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    let mock_output = "Investigating...\n[[RALPH:CONTINUE]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // Empty input (just Enter) should continue (default is Y)
+    // Two empty inputs, then hit max iterations
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Test empty input continues")
+        .arg("--pause")
+        .arg("--max-iterations")
+        .arg("2")
+        .write_stdin("\n\n") // Just Enter twice
+        .assert()
+        .code(2); // MAX_ITERATIONS reached
+
+    // Verify both iterations ran
+    let log_content = fs::read_to_string(dir.path().join("ralph.log")).unwrap();
+    assert!(
+        log_content.contains("=== Iteration 2 starting ==="),
+        "Iteration 2 should run when user presses Enter"
+    );
+}
+
+#[test]
+fn reverse_pause_flag_stops_before_found_signal_iteration() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Mock that would output FOUND, but user stops before it runs
+    let mock_output = "[[RALPH:FOUND:Answer found]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // User stops at the prompt before the iteration even runs
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("Test pause before FOUND")
+        .arg("--pause")
+        .arg("--max-iterations")
+        .arg("1")
+        .write_stdin("n\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Stopped by user"));
+
+    // ralph.log should not contain any iteration since user stopped first
+    // Actually, the header is printed before the pause prompt, so it will show
+    // but the iteration won't actually execute
+    let log_path = dir.path().join("ralph.log");
+    if log_path.exists() {
+        let log_content = fs::read_to_string(&log_path).unwrap();
+        // The log shouldn't contain claude output since we stopped before running
+        assert!(
+            !log_content.contains("Answer found"),
+            "Claude output should not appear since iteration didn't run"
+        );
+    }
+}
+
+#[test]
+fn reverse_pause_flag_shows_in_help() {
+    ralphctl()
+        .arg("reverse")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--pause"))
+        .stdout(predicate::str::contains("confirmation"));
+}
