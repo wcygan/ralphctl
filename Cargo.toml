@@ -18,6 +18,9 @@ regex = "1.10"
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
 tokio = { version = "1.43", features = ["rt-multi-thread", "macros", "process", "io-util", "fs", "signal"] }
 
+[dev-dependencies]
+tempfile = "3.16"
+
 [profile.release]
 lto = true
 strip = true

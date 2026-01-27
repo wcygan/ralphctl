@@ -1,4 +1,5 @@
 mod error;
+mod files;
 mod parser;
 
 use anyhow::Result;
@@ -70,12 +71,10 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-const IMPLEMENTATION_PLAN: &str = "IMPLEMENTATION_PLAN.md";
-
 fn status_cmd() -> Result<()> {
-    let path = Path::new(IMPLEMENTATION_PLAN);
+    let path = Path::new(files::IMPLEMENTATION_PLAN_FILE);
     if !path.exists() {
-        error::die(&format!("{} not found", IMPLEMENTATION_PLAN));
+        error::die(&format!("{} not found", files::IMPLEMENTATION_PLAN_FILE));
     }
 
     let content = fs::read_to_string(path)?;
