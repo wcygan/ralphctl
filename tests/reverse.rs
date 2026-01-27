@@ -270,3 +270,93 @@ fn reverse_help_shows_exit_codes() {
         .stdout(predicate::str::contains("Blocked"))
         .stdout(predicate::str::contains("Inconclusive"));
 }
+
+// ==================== No-Argument Behavior Tests ====================
+
+#[test]
+fn reverse_without_args_uses_existing_question_file() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Pre-create QUESTION.md with an existing question
+    let question_content = r#"# Investigation Question
+
+Why does the cache invalidation fail on concurrent updates?
+
+## Context (Optional)
+
+The issue appears in production with high traffic.
+"#;
+    fs::write(dir.path().join("QUESTION.md"), question_content).unwrap();
+
+    // Create mock claude that outputs FOUND signal
+    let mock_output =
+        "Reading QUESTION.md...\nInvestigating cache...\n[[RALPH:FOUND:Race condition in cache.rs]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    // Run reverse without question argument
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("=== Iteration 1 starting ==="))
+        .stdout(predicate::str::contains("Investigation complete"))
+        .stdout(predicate::str::contains("Race condition in cache.rs"));
+
+    // Verify QUESTION.md was NOT overwritten (still has original content)
+    let final_question = fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+    assert!(
+        final_question.contains("cache invalidation fail on concurrent updates"),
+        "QUESTION.md should retain original content"
+    );
+    assert!(
+        final_question.contains("Context (Optional)"),
+        "QUESTION.md should retain optional context section"
+    );
+}
+
+#[test]
+fn reverse_without_args_preserves_question_context() {
+    let dir = temp_dir();
+    setup_reverse_prompt_cache(&dir);
+
+    // Create QUESTION.md with detailed context
+    let question_content = r#"# Investigation Question
+
+How does the payment processing handle retries?
+
+## Context (Optional)
+
+We're seeing duplicate charges in production. The retry logic was added in commit abc123.
+Relevant files: src/payment.rs, src/stripe_client.rs
+"#;
+    fs::write(dir.path().join("QUESTION.md"), question_content).unwrap();
+
+    let mock_output = "[[RALPH:FOUND:Retry logic lacks idempotency key]]\n";
+    let bin_dir = create_mock_claude(&dir, mock_output);
+
+    let path = format!("{}:/usr/bin", bin_dir.display());
+
+    ralphctl()
+        .current_dir(dir.path())
+        .env("PATH", &path)
+        .env("HOME", dir.path())
+        .arg("reverse")
+        .arg("--max-iterations")
+        .arg("1")
+        .assert()
+        .success();
+
+    // Verify the full context is preserved
+    let final_question = fs::read_to_string(dir.path().join("QUESTION.md")).unwrap();
+    assert!(final_question.contains("duplicate charges in production"));
+    assert!(final_question.contains("commit abc123"));
+    assert!(final_question.contains("src/payment.rs"));
+}
