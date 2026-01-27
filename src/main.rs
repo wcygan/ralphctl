@@ -10,6 +10,13 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 
+/// Files that init creates (excludes ralph.log which is only created by run)
+const INIT_FILES: &[&str] = &[
+    files::SPEC_FILE,
+    files::IMPLEMENTATION_PLAN_FILE,
+    files::PROMPT_FILE,
+];
+
 #[derive(Parser)]
 #[command(name = "ralphctl")]
 #[command(version, about = "Manage Ralph Loop workflows")]
@@ -55,7 +62,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Command::Init { force } => {
-            println!("init (force={})", force);
+            init_cmd(force).await?;
         }
         Command::Run {
             max_iterations,
@@ -121,6 +128,42 @@ fn clean_cmd(force: bool) -> Result<()> {
         file_count,
         if file_count == 1 { "" } else { "s" }
     );
+
+    Ok(())
+}
+
+async fn init_cmd(force: bool) -> Result<()> {
+    // Step 1: Verify claude CLI is in PATH
+    if !cli::claude_exists() {
+        error::die("claude not found in PATH");
+    }
+
+    // Step 2: Check if init files already exist
+    let cwd = Path::new(".");
+    let existing: Vec<_> = INIT_FILES.iter().filter(|f| cwd.join(f).exists()).collect();
+
+    if !existing.is_empty() && !force {
+        let names = existing
+            .iter()
+            .copied()
+            .copied()
+            .collect::<Vec<_>>()
+            .join(", ");
+        error::die(&format!(
+            "files already exist: {}. Use --force to overwrite",
+            names
+        ));
+    }
+
+    // Step 3: Fetch templates from GitHub (with cache fallback)
+    let templates = templates::get_all_templates().await?;
+
+    // Step 4: Write files to current directory
+    for (filename, content) in templates {
+        fs::write(filename, content)?;
+    }
+
+    println!("Initialized ralph loop files.");
 
     Ok(())
 }
