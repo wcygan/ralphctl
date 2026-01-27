@@ -81,9 +81,9 @@
 
 ## Phase 9: Reverse Mode Foundation
 
-- [ ] Add reverse mode file constants to `files.rs` (QUESTION_FILE, INVESTIGATION_FILE, FINDINGS_FILE, REVERSE_PROMPT_FILE)
-- [ ] Add `exit::INCONCLUSIVE = 4` constant to `error.rs`
-- [ ] Add REVERSE_FILES array and `find_existing_reverse_files()` function to `files.rs`
+- [x] Add reverse mode file constants to `files.rs` (QUESTION_FILE, INVESTIGATION_FILE, FINDINGS_FILE, REVERSE_PROMPT_FILE)
+- [x] Add `exit::INCONCLUSIVE = 4` constant to `error.rs`
+- [x] Add REVERSE_FILES array and `find_existing_reverse_files()` function to `files.rs`
 - [ ] Add `find_archivable_reverse_files()` function to `files.rs`
 - [ ] Write unit tests for reverse file discovery functions
 
