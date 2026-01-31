@@ -1,47 +1,42 @@
 ---
-sidebar_position: 1
+sidebar_position: 0
+title: Introduction
+slug: /intro
 ---
 
-# Tutorial Intro
+# ralphctl
 
-Let's discover **Docusaurus in less than 5 minutes**.
+ralphctl is a CLI for managing Ralph Loop workflows -- autonomous development sessions driven by Claude. It orchestrates `claude` subprocess calls to execute iterative development tasks defined in markdown files.
+
+## Workflow
+
+```
+ralphctl init → ralphctl interview → ralphctl run → ralphctl archive
+```
+
+1. **`init`** scaffolds the project files (SPEC.md, IMPLEMENTATION_PLAN.md, PROMPT.md) from templates.
+2. **`interview`** launches an AI-guided session to flesh out your spec and implementation plan.
+3. **`run`** executes the autonomous loop: each iteration reads the current state, implements the next task, and signals whether to continue.
+4. **`archive`** saves completed work to a timestamped directory and resets the workspace.
 
 ## Getting Started
 
-Get started by **creating a new site**.
-
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
-
-### What you'll need
-
-- [Node.js](https://nodejs.org/en/download/) version 20.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
-
-## Generate a new site
-
-Generate a new Docusaurus site using the **classic template**.
-
-The classic template will automatically be added to your project after you run the command:
+Install ralphctl and scaffold a new project:
 
 ```bash
-npm init docusaurus@latest my-website classic
+ralphctl init
+ralphctl interview
+ralphctl run
 ```
 
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
-
-The command also installs all necessary dependencies you need to run Docusaurus.
-
-## Start your site
-
-Run the development server:
+Check progress at any time:
 
 ```bash
-cd my-website
-npm run start
+ralphctl status
 ```
 
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
+## Learn More
 
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
-
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+- [The Philosophy](./philosophy/the-philosophy.md) -- why the Ralph Loop works
+- [How ralphctl Implements It](./philosophy/how-ralphctl-implements-it.md) -- design decisions mapped to principles
+- [Future Improvements](./philosophy/future-improvements.md) -- where we're headed

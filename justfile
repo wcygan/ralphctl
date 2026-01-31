@@ -37,3 +37,7 @@ ci: check test
 
 # Format, lint, test, then build
 all: fmt lint test build
+
+# Start docs dev server
+docs:
+    cd docs && bun start
