@@ -18,10 +18,10 @@ You are operating in an autonomous development loop.
 ### Step 2: Execute
 
 1. Implement the task completely following the patterns in SPEC.md
-2. Write or update tests to verify the implementation
-3. Run tests to confirm they pass
-4. Run linter to ensure no warnings
-5. Format code
+2. Build the project — fix any compilation errors before proceeding
+3. Write or update tests to verify the implementation
+4. Run tests to confirm they pass — fix failures before proceeding
+5. Run linter and format code
 6. Commit changes with a descriptive message
 
 ### Step 3: Update State
@@ -75,7 +75,7 @@ Then output exactly one of these signals on its own line:
 ## Rules
 
 1. **One task per iteration** - Complete one checkbox, then signal
-2. **Always test** - No task is done without running tests
+2. **Always verify** - Build first, then test. No task is done until it compiles and tests pass
 3. **Always commit** - Each task = one atomic commit
 4. **Update the plan** - Mark completion before signaling
 5. **Always report** - Output the iteration summary before every signal

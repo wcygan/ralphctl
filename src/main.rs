@@ -604,18 +604,24 @@ The implementation plan is the agent's task queue. Each checkbox is one unit of 
 ## Phase 1: Foundation
 - [ ] Set up project structure with Cargo.toml and module layout
 - [ ] Implement core data types in src/types.rs
-- [ ] Add unit tests for data types
+- [ ] Implement core logic in src/lib.rs
+- [ ] Add unit tests for data types and core logic
+- [ ] Verify: build passes, all tests pass, no lint warnings
 
 ## Phase 2: Core Features
-- [ ] Implement feature X with tests
-- [ ] Implement feature Y with tests
+- [ ] Implement feature X in src/feature_x.rs
+- [ ] Implement feature Y in src/feature_y.rs
+- [ ] Add tests for features X and Y
+- [ ] Verify: build passes, all tests pass, no lint warnings
 
 ## Phase 3: Integration & Polish
-- [ ] Add integration tests
+- [ ] Add integration tests covering end-to-end workflows
 - [ ] Write user documentation
 ```
 
 **Phasing**: Group related tasks into phases. Complete one phase before starting the next. This provides natural checkpoints and reduces context needed per iteration.
+
+**Task ordering within phases**: Front-load implementation tasks — write the code first, then write tests, then verify everything builds and passes. This lets the agent focus on code generation while context is fresh, and handle verification as a separate step where the build/test output drives the work.
 
 ## Interview Guidelines
 
