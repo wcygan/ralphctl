@@ -583,6 +583,10 @@ One paragraph describing what this is and why it exists.
 - Data flow and interactions
 - Technology choices with rationale
 
+## Build & Test
+- Exact commands to build, test, lint, and format the project
+- The agent uses these commands every iteration — they must be correct
+
 ## Out of Scope
 - Explicit list of what this project does NOT do
 ```
@@ -634,10 +638,11 @@ Topics to cover:
 1. **Core purpose**: What problem does this solve? Who is it for?
 2. **Features**: What must it do? What's nice-to-have vs essential?
 3. **Technical constraints**: Language, framework, dependencies, environment?
-4. **Interfaces**: CLI args? API endpoints? File formats? UI?
-5. **Edge cases**: What happens when things go wrong? Invalid input? Network failures?
-6. **Success criteria**: How do we know it's done? What tests prove it works?
-7. **Scope boundaries**: What does this explicitly NOT do?
+4. **Build & test commands**: Exact commands to build, run tests, lint, and format. The agent runs these every iteration — they must be right. Always populate the "Build & Test" section of SPEC.md with these commands.
+5. **Interfaces**: CLI args? API endpoints? File formats? UI?
+6. **Edge cases**: What happens when things go wrong? Invalid input? Network failures?
+7. **Success criteria**: How do we know it's done? What tests prove it works?
+8. **Scope boundaries**: What does this explicitly NOT do?
 
 Don't accept vague answers. "It should be fast" → "What's the latency budget? 100ms? 1s?" Push for specifics.
 

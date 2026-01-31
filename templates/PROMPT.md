@@ -13,7 +13,8 @@ You are operating in an autonomous development loop.
 
 1. Read `SPEC.md` to understand the project architecture and requirements
 2. Read `IMPLEMENTATION_PLAN.md` to find current progress
-3. Identify the next incomplete task (first `- [ ]` item)
+3. Check `git log --oneline -10` to see what previous iterations built
+4. Identify the next incomplete task (first `- [ ]` item)
 
 ### Step 2: Execute
 
@@ -23,6 +24,8 @@ You are operating in an autonomous development loop.
 4. Run tests to confirm they pass — fix failures before proceeding
 5. Run linter and format code
 6. Commit changes with a descriptive message
+
+**Error recovery**: If you cannot get the build or tests passing after 3 fix attempts, stop and signal `[[RALPH:BLOCKED:<describe what's failing and why>]]`. Do not loop endlessly — a human can unblock you faster than a 4th attempt.
 
 ### Step 3: Update State
 

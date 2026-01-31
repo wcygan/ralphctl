@@ -1,16 +1,20 @@
 # Implementation Plan
 
-## Phase 1: Setup
+## Phase 1: Foundation
 
-- [ ] Task 1.1: Initialize project structure
-- [ ] Task 1.2: Set up dependencies
+- [ ] Initialize project structure and dependencies
+- [ ] Implement core data types and modules
+- [ ] Add unit tests for core types
+- [ ] Verify: build passes, tests pass, no lint warnings
 
 ## Phase 2: Core Features
 
-- [ ] Task 2.1: Implement main functionality
-- [ ] Task 2.2: Add error handling
+- [ ] Implement main functionality
+- [ ] Implement error handling
+- [ ] Add tests for features and error paths
+- [ ] Verify: build passes, tests pass, no lint warnings
 
-## Phase 3: Polish
+## Phase 3: Integration & Polish
 
-- [ ] Task 3.1: Add tests
-- [ ] Task 3.2: Documentation
+- [ ] Add integration tests covering end-to-end workflows
+- [ ] Write user documentation
